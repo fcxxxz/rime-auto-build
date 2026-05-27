@@ -97,17 +97,32 @@ jobs:
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vsPath = & $vswhere -latest -property installationPath
+          $vsVersion = & $vswhere -latest -property installationVersion
           Write-Host "VS installPath: $vsPath"
+          Write-Host "VS installVersion: $vsVersion"
+
+          Write-Host "--- ATL/MFC related packages currently installed ---"
+          & $vswhere -latest -include packages -format json |
+            ConvertFrom-Json |
+            ForEach-Object { $_.packages } |
+            Where-Object { $_.id -match 'ATL|MFC|VC\.' -and $_.type -eq 'Component' } |
+            Select-Object id, version | Format-Table -AutoSize | Out-String | Write-Host
+
           $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
-          $args = @(
-            'modify',
-            '--installPath', $vsPath,
-            '--quiet', '--norestart', '--nocache',
-            '--add', 'Microsoft.VisualStudio.Component.VC.ATL',
-            '--add', 'Microsoft.VisualStudio.Component.VC.ATLMFC'
-          )
-          $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
+          $argLine = 'modify --installPath "' + $vsPath + '" --quiet --norestart --nocache --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATLMFC'
+          Write-Host "Running: $installer $argLine"
+
+          $p = Start-Process -FilePath $installer -ArgumentList $argLine -Wait -PassThru -NoNewWindow
           Write-Host "VS installer exit: $($p.ExitCode)"
+
+          Write-Host "--- VS setup logs (latest 5) ---"
+          Get-ChildItem $env:TEMP -Filter "dd_*.log" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 5 |
+            ForEach-Object {
+              Write-Host "===== $($_.Name) ($($_.Length) bytes) ====="
+              Get-Content $_.FullName -Tail 80
+            }
+
           if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
             throw "VS installer modify failed: $($p.ExitCode)"
           }
