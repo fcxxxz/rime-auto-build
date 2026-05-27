@@ -1,0 +1,19 @@
+weasels:
+  - name: official
+    url: https://github.com/rime/weasel.git
+    ref: master
+  - name: mine
+    url: https://github.com/example/weasel.git
+    ref: main
+
+datas:
+  - name: tiger
+    url: https://github.com/example/rime-tiger.git
+    ref: main
+  - name: moqi
+    url: https://github.com/example/rime-moqi.git
+    ref: main
+
+excludes:
+  - data: moqi
+    weasel: official
