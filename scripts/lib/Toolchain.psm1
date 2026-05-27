@@ -82,6 +82,18 @@ function Get-BoostLinkLibraries {
     )
 }
 
+function Get-BoostDefaultLibraryOptions {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture
+    )
+
+    return @((Get-BoostLinkLibraries $Architecture) | ForEach-Object {
+        "/DEFAULTLIB:$_"
+    })
+}
+
 function Get-ExpectedBoostLibraries {
     return @(
         Get-BoostLinkLibraries 'x32'
@@ -116,32 +128,60 @@ function Select-ClPath {
     return $null
 }
 
-function Add-BoostLibrariesToDependencies {
+function Remove-BoostLibrariesFromDependencies {
     param(
-        [Parameter(Mandatory)][string]$AdditionalDependencies,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalDependencies,
         [Parameter(Mandatory)][string[]]$Libraries
     )
 
-    $items = New-Object System.Collections.Generic.List[string]
-    $seen = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
-
+    $boostLibraries = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
     foreach ($lib in $Libraries) {
-        if ($seen.Add($lib)) {
-            $items.Add($lib)
-        }
+        [void]$boostLibraries.Add($lib)
     }
 
+    $items = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
     foreach ($item in ($AdditionalDependencies -split ';')) {
         if ([string]::IsNullOrWhiteSpace($item)) {
             continue
         }
         $trimmed = $item.Trim()
+        if ($boostLibraries.Contains($trimmed)) {
+            continue
+        }
         if ($seen.Add($trimmed)) {
             $items.Add($trimmed)
         }
     }
 
     return ($items -join ';')
+}
+
+function Add-BoostOptionsToAdditionalOptions {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalOptions,
+        [Parameter(Mandatory)][string[]]$Options
+    )
+
+    $current = $AdditionalOptions.Trim()
+    $missing = @($Options | Where-Object {
+        $current -notmatch [regex]::Escape($_)
+    })
+
+    if ($missing.Count -eq 0) {
+        return $current
+    }
+
+    $insert = ($missing -join ' ')
+    if ([string]::IsNullOrWhiteSpace($current)) {
+        return "$insert %(AdditionalOptions)"
+    }
+
+    if ($current -match [regex]::Escape('%(AdditionalOptions)')) {
+        return ($current -replace [regex]::Escape('%(AdditionalOptions)'), "$insert %(AdditionalOptions)")
+    }
+
+    return "$current $insert %(AdditionalOptions)"
 }
 
 function Add-BoostLinkLibrariesToProject {
@@ -170,18 +210,32 @@ function Add-BoostLinkLibrariesToProject {
             continue
         }
 
-        $additional = $link.SelectSingleNode('msb:AdditionalDependencies', $ns)
-        if (-not $additional) {
-            $additional = $xml.CreateElement('AdditionalDependencies', $xml.DocumentElement.NamespaceURI)
-            [void]$link.AppendChild($additional)
+        $boostLibraries = Get-BoostLinkLibraries $arch
+        $boostOptions = Get-BoostDefaultLibraryOptions $arch
+
+        $additionalOptions = $link.SelectSingleNode('msb:AdditionalOptions', $ns)
+        if (-not $additionalOptions) {
+            $additionalOptions = $xml.CreateElement('AdditionalOptions', $xml.DocumentElement.NamespaceURI)
+            [void]$link.AppendChild($additionalOptions)
         }
 
-        $updated = Add-BoostLibrariesToDependencies `
-            -AdditionalDependencies $additional.InnerText `
-            -Libraries (Get-BoostLinkLibraries $arch)
-        if ($additional.InnerText -ne $updated) {
-            $additional.InnerText = $updated
+        $updatedOptions = Add-BoostOptionsToAdditionalOptions `
+            -AdditionalOptions $additionalOptions.InnerText `
+            -Options $boostOptions
+        if ($additionalOptions.InnerText -ne $updatedOptions) {
+            $additionalOptions.InnerText = $updatedOptions
             $changed = $true
+        }
+
+        $additional = $link.SelectSingleNode('msb:AdditionalDependencies', $ns)
+        if ($additional) {
+            $updated = Remove-BoostLibrariesFromDependencies `
+                -AdditionalDependencies $additional.InnerText `
+                -Libraries $boostLibraries
+            if ($additional.InnerText -ne $updated) {
+                $additional.InnerText = $updated
+                $changed = $true
+            }
         }
     }
 

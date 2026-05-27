@@ -96,7 +96,7 @@ Describe 'Get-BoostLinkLibraries' {
 }
 
 Describe 'Add-BoostLinkLibrariesToProject' {
-  It 'adds Release Win32/x64 Boost libs without duplicating existing dependencies' {
+  It 'adds Boost as default libraries without depending on static library order' {
     $projectPath = Join-Path $TestDrive 'WeaselServer.vcxproj'
     [System.IO.File]::WriteAllText(
       $projectPath,
@@ -104,11 +104,12 @@ Describe 'Add-BoostLinkLibrariesToProject' {
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Link>
-      <AdditionalDependencies>imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libboost_thread-vc143-mt-s-x32-1_84.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
+      <AdditionalOptions>/DEBUG %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>imm32.lib;libboost_thread-vc143-mt-s-x64-1_84.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -126,9 +127,10 @@ Describe 'Add-BoostLinkLibrariesToProject' {
     Add-BoostLinkLibrariesToProject $projectPath
 
     $content = Get-Content -LiteralPath $projectPath -Raw
-    $content | Should -Match 'libboost_filesystem-vc143-mt-s-x32-1_84\.lib;libboost_json-vc143-mt-s-x32-1_84\.lib;libboost_locale-vc143-mt-s-x32-1_84\.lib;libboost_regex-vc143-mt-s-x32-1_84\.lib;libboost_serialization-vc143-mt-s-x32-1_84\.lib;libboost_system-vc143-mt-s-x32-1_84\.lib;libboost_wserialization-vc143-mt-s-x32-1_84\.lib;libboost_thread-vc143-mt-s-x32-1_84\.lib;libboost_chrono-vc143-mt-s-x32-1_84\.lib;libboost_atomic-vc143-mt-s-x32-1_84\.lib;imm32\.lib;%\(AdditionalDependencies\)'
-    $content | Should -Match 'libboost_filesystem-vc143-mt-s-x64-1_84\.lib;libboost_json-vc143-mt-s-x64-1_84\.lib;libboost_locale-vc143-mt-s-x64-1_84\.lib;libboost_regex-vc143-mt-s-x64-1_84\.lib;libboost_serialization-vc143-mt-s-x64-1_84\.lib;libboost_system-vc143-mt-s-x64-1_84\.lib;libboost_wserialization-vc143-mt-s-x64-1_84\.lib;libboost_thread-vc143-mt-s-x64-1_84\.lib;libboost_chrono-vc143-mt-s-x64-1_84\.lib;libboost_atomic-vc143-mt-s-x64-1_84\.lib;imm32\.lib;%\(AdditionalDependencies\)'
-    ([regex]::Matches($content, 'libboost_thread-vc143-mt-s-x64-1_84\.lib')).Count | Should -Be 1
+    $content | Should -Match '/DEFAULTLIB:libboost_filesystem-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_json-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_locale-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_regex-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_serialization-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_system-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_wserialization-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_thread-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_chrono-vc143-mt-s-x32-1_84\.lib /DEFAULTLIB:libboost_atomic-vc143-mt-s-x32-1_84\.lib %\(AdditionalOptions\)'
+    $content | Should -Match '/DEBUG /DEFAULTLIB:libboost_filesystem-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_json-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_locale-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_regex-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_serialization-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_system-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_wserialization-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_thread-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_chrono-vc143-mt-s-x64-1_84\.lib /DEFAULTLIB:libboost_atomic-vc143-mt-s-x64-1_84\.lib %\(AdditionalOptions\)'
+    $content | Should -Not -Match '<AdditionalDependencies>[^<]*libboost_'
+    ([regex]::Matches($content, '/DEFAULTLIB:libboost_thread-vc143-mt-s-x64-1_84\.lib')).Count | Should -Be 1
     $content | Should -Match 'debug\.lib;%\(AdditionalDependencies\)'
   }
 }
