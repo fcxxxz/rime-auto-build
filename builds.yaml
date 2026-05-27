@@ -1,0 +1,19 @@
+# rime-auto-build builds.yaml
+# 改这个文件后 push 会触发一次全量构建。
+
+weasels:
+  - name: official
+    url: https://github.com/rime/weasel.git
+    ref: master
+  # 在这里加上你自己的 weasel fork：
+  # - name: mine
+  #   url: https://github.com/<your-user>/weasel.git
+  #   ref: main
+
+datas:
+  # 在这里加上每个 data 仓库，例如：
+  # - name: tiger
+  #   url: https://github.com/<your-user>/rime-tiger.git
+  #   ref: main
+
+excludes: []
