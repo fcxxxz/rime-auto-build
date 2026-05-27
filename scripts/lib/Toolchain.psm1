@@ -16,10 +16,16 @@ function ConvertTo-VcvarsVersion {
 function New-VsDevCmdCall {
     param(
         [Parameter(Mandatory)][string]$VsDevCmd,
-        [AllowEmptyString()][string]$MsvcToolsVersion
+        [AllowEmptyString()][string]$MsvcToolsVersion,
+
+        [ValidateSet('x86', 'amd64')]
+        [string]$Architecture = 'amd64',
+
+        [ValidateSet('x86', 'amd64')]
+        [string]$HostArchitecture = 'amd64'
     )
 
-    $call = "call `"$VsDevCmd`" -arch=amd64 -host_arch=amd64"
+    $call = "call `"$VsDevCmd`" -arch=$Architecture -host_arch=$HostArchitecture"
     $vcvarsVersion = ConvertTo-VcvarsVersion $MsvcToolsVersion
     if ($vcvarsVersion) {
         $call += " -vcvars_ver=$vcvarsVersion"
@@ -138,6 +144,10 @@ function Get-MissingBoostLibraries {
 
 function New-BoostProjectConfig {
     param([Parameter(Mandatory)][string]$CompilerPath)
+
+    if ($CompilerPath -match '^(?<prefix>.*\\bin\\)Host(?:X86|X64)\\(?:x86|x64)\\cl\.exe$') {
+        $CompilerPath = "$($Matches.prefix)HostX86\x86\cl.exe"
+    }
 
     return "using msvc : 14.3 : `"$CompilerPath`" ;"
 }
