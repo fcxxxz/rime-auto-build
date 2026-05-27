@@ -94,6 +94,18 @@ function Get-BoostDefaultLibraryOptions {
     })
 }
 
+function Get-BoostWholeArchiveOptions {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture
+    )
+
+    return @((Get-BoostLinkLibraries $Architecture) | ForEach-Object {
+        "/WHOLEARCHIVE:`"`$(BOOST_ROOT)\stage\lib\$_`""
+    })
+}
+
 function Get-BoostLinkOptions {
     param(
         [Parameter(Mandatory)]
@@ -102,7 +114,7 @@ function Get-BoostLinkOptions {
     )
 
     if ($Architecture -eq 'x32') {
-        return Get-BoostLinkLibraries $Architecture
+        return Get-BoostWholeArchiveOptions $Architecture
     }
 
     return Get-BoostDefaultLibraryOptions $Architecture
@@ -209,7 +221,7 @@ function Remove-BoostOptionsFromAdditionalOptions {
             continue
         }
         $trimmed = $item.Trim()
-        if ($trimmed -match '^(?:/DEFAULTLIB:|/WHOLEARCHIVE:)?libboost_[^"\s;]+\.lib$') {
+        if ($trimmed -match '^(?:/DEFAULTLIB:|/WHOLEARCHIVE:)?(?:.*[\\/])?libboost_[^"\s;]+\.lib"?$') {
             continue
         }
         $items.Add($trimmed)
