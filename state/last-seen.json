@@ -1,30 +1,30 @@
 {
   "weasels": {
-    "mine": {
-      "ref": "master",
-      "sha": "485b7a18e71bb73aef5d16f9b0d328af689d6527",
-      "checked_at": "2026-05-27T16:47:16Z",
-      "url": "https://github.com/a810439322/weasel.git"
-    },
     "official": {
-      "ref": "master",
       "sha": "93eec2dc33dfcf04c356cce87732b638888fff4d",
-      "checked_at": "2026-05-27T16:47:16Z",
+      "ref": "master",
+      "checked_at": "2026-05-27T22:12:13Z",
       "url": "https://github.com/rime/weasel.git"
+    },
+    "mine": {
+      "sha": "485b7a18e71bb73aef5d16f9b0d328af689d6527",
+      "ref": "master",
+      "checked_at": "2026-05-27T22:12:13Z",
+      "url": "https://github.com/a810439322/weasel.git"
     }
   },
   "datas": {
-    "tiger": {
-      "ref": "main",
-      "sha": "904c63fdd795dc2f3b3eaae462954222cbbcd525",
-      "checked_at": "2026-05-27T16:47:16Z",
-      "url": "https://github.com/a810439322/rime-tiger.git"
-    },
     "moran": {
+      "sha": "2fd0dbb9a44bf39ed844dc2ae6f353eb2ec03b4b",
       "ref": "main",
-      "sha": "8c68ffdf64bc2d52a27ec5135eeb801a744b6fb5",
-      "checked_at": "2026-05-27T16:47:16Z",
+      "checked_at": "2026-05-27T22:12:13Z",
       "url": "https://github.com/rimeinn/rime-moran.git"
+    },
+    "tiger": {
+      "sha": "904c63fdd795dc2f3b3eaae462954222cbbcd525",
+      "ref": "main",
+      "checked_at": "2026-05-27T22:12:13Z",
+      "url": "https://github.com/a810439322/rime-tiger.git"
     }
   }
 }
