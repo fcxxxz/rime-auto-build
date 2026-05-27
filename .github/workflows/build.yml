@@ -92,6 +92,26 @@ jobs:
         shell: pwsh
         run: choco install nsis -y --no-progress
 
+      - name: Install Visual Studio ATL component
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -property installationPath
+          Write-Host "VS installPath: $vsPath"
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+          $args = @(
+            'modify',
+            '--installPath', $vsPath,
+            '--quiet', '--norestart', '--nocache',
+            '--add', 'Microsoft.VisualStudio.Component.VC.ATL',
+            '--add', 'Microsoft.VisualStudio.Component.VC.ATLMFC'
+          )
+          $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
+          Write-Host "VS installer exit: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+            throw "VS installer modify failed: $($p.ExitCode)"
+          }
+
       - name: Run pack.ps1
         shell: pwsh
         run: ./pack.ps1
