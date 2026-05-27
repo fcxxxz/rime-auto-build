@@ -101,41 +101,31 @@ jobs:
           Write-Host "VS installPath: $vsPath"
           Write-Host "VS installVersion: $vsVersion"
 
-          $atlbase = Get-ChildItem -Path $vsPath -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue | Select-Object -First 5
-          if ($atlbase) {
-            Write-Host "atlbase.h FOUND on disk:"
-            $atlbase | ForEach-Object { Write-Host "  $($_.FullName)" }
-            Write-Host "ATL files present, skip modify."
-            return
-          }
-          Write-Host "atlbase.h NOT FOUND on disk. Installing via setup.exe..."
-
-          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
-          $argLine = 'modify --installPath "' + $vsPath + '" --quiet --norestart --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATLMFC --add Microsoft.VisualStudio.Component.VC.ATL.ARM64 --add Microsoft.VisualStudio.Component.VC.MFC.ARM64'
-          Write-Host "Running: $installer $argLine"
-
-          $p = Start-Process -FilePath $installer -ArgumentList $argLine -Wait -PassThru -NoNewWindow
-          Write-Host "VS installer exit: $($p.ExitCode)"
-
-          $atlbase2 = Get-ChildItem -Path $vsPath -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue | Select-Object -First 5
-          if ($atlbase2) {
-            Write-Host "atlbase.h NOW present:"
-            $atlbase2 | ForEach-Object { Write-Host "  $($_.FullName)" }
-          } else {
-            Write-Host "atlbase.h STILL missing after modify!"
-            Write-Host "--- VS setup logs ---"
-            Get-ChildItem $env:TEMP -Filter "dd_*.log" -ErrorAction SilentlyContinue |
-              Sort-Object LastWriteTime -Descending | Select-Object -First 3 |
-              ForEach-Object {
-                Write-Host "===== $($_.Name) ====="
-                Get-Content $_.FullName -Tail 50
-              }
-            throw "ATL install failed - atlbase.h missing"
+          function Find-AtlBase {
+            Get-ChildItem -Path (Join-Path $vsPath 'VC\Tools\MSVC') -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue | Select-Object -First 5
           }
 
-          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
-            throw "VS installer modify failed: $($p.ExitCode)"
+          $atlbase = Find-AtlBase
+          if (-not $atlbase) {
+            Write-Host "atlbase.h NOT FOUND. Installing via setup.exe..."
+            $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+            $argLine = 'modify --installPath "' + $vsPath + '" --quiet --norestart --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATLMFC'
+            $p = Start-Process -FilePath $installer -ArgumentList $argLine -Wait -PassThru -NoNewWindow
+            Write-Host "VS installer exit: $($p.ExitCode)"
+            if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+              throw "VS installer modify failed: $($p.ExitCode)"
+            }
+            $atlbase = Find-AtlBase
+            if (-not $atlbase) { throw "atlbase.h still missing after modify" }
           }
+
+          Write-Host "atlbase.h found:"
+          $atlbase | ForEach-Object { Write-Host "  $($_.FullName)" }
+
+          # 解出 MSVC 版本号（如 14.51.36231），让 vcvarsall 在 pack.ps1 里强制选这个 toolset
+          $msvcVer = $atlbase[0].FullName -replace '.*\\MSVC\\([0-9.]+)\\atlmfc\\.*','$1'
+          Write-Host "Pinning VCToolsVersion=$msvcVer for downstream pack.ps1"
+          "VCToolsVersion=$msvcVer" | Add-Content -Path $env:GITHUB_ENV
 
       - name: Run pack.ps1
         shell: pwsh
