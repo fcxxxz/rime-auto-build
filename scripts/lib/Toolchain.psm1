@@ -74,4 +74,16 @@ function New-BoostProjectConfig {
     return "using msvc : 14.3 : `"$CompilerPath`" ;"
 }
 
-Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig
+function Select-ClPath {
+    param([Parameter(Mandatory)][string[]]$Output)
+
+    foreach ($line in $Output) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match '^[A-Za-z]:\\.*\\cl\.exe$') {
+            return $trimmed
+        }
+    }
+    return $null
+}
+
+Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig, Select-ClPath

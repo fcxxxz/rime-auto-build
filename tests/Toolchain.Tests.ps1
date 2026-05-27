@@ -80,3 +80,17 @@ Describe 'New-BoostProjectConfig' {
       Should -Be 'using msvc : 14.3 : "C:\VS\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe" ;'
   }
 }
+
+Describe 'Select-ClPath' {
+  It 'ignores VsDevCmd banner output and returns the first cl.exe path' {
+    $output = @(
+      '**********************************************************************',
+      '** Visual Studio 2026 Developer Command Prompt v18.6.0',
+      '**********************************************************************',
+      'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\bin\Hostx64\x64\cl.exe'
+    )
+
+    Select-ClPath $output |
+      Should -Be 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\bin\Hostx64\x64\cl.exe'
+  }
+}

@@ -798,10 +798,11 @@ if ($missingBoost.Count -gt 0) {
   }
 
   $selectedCl = & cmd.exe /d /s /c "$VsDevCmdCall && where cl"
-  if ($LASTEXITCODE -ne 0 -or -not $selectedCl) {
+  $selectedClPath = Select-ClPath $selectedCl
+  if ($LASTEXITCODE -ne 0 -or -not $selectedClPath) {
     throw 'VsDevCmd did not expose cl.exe for Boost.Build configuration.'
   }
-  $boostProjectConfig = New-BoostProjectConfig ([string]$selectedCl[0])
+  $boostProjectConfig = New-BoostProjectConfig $selectedClPath
   Set-Content -LiteralPath (Join-Path $BoostRoot 'project-config.jam') -Value $boostProjectConfig -Encoding ASCII
   Write-Host "  Boost.Build: $boostProjectConfig"
 
