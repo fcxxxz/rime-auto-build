@@ -5,9 +5,6 @@
 /plum/
 /boost_*/
 
-# 旧项目里的测试目录如果不需要也排除
-/Tests/
-
 # 打包产物与中间物
 /.pack-work/
 /output/
