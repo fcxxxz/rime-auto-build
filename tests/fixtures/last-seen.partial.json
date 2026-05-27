@@ -1,0 +1,18 @@
+{
+  "weasels": {
+    "official": {
+      "url": "https://github.com/rime/weasel.git",
+      "ref": "master",
+      "sha": "aaaaaaaa1111111111111111111111111111aaaa",
+      "checked_at": "2026-05-26T03:17:00Z"
+    }
+  },
+  "datas": {
+    "tiger": {
+      "url": "https://github.com/example/rime-tiger.git",
+      "ref": "main",
+      "sha": "bbbbbbbb2222222222222222222222222222bbbb",
+      "checked_at": "2026-05-26T03:17:00Z"
+    }
+  }
+}
