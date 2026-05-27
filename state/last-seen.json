@@ -1,4 +1,30 @@
 {
-  "weasels": {},
-  "datas": {}
+  "weasels": {
+    "mine": {
+      "sha": "485b7a18e71bb73aef5d16f9b0d328af689d6527",
+      "ref": "master",
+      "url": "https://github.com/a810439322/weasel.git",
+      "checked_at": "2026-05-27T08:38:01Z"
+    },
+    "official": {
+      "sha": "93eec2dc33dfcf04c356cce87732b638888fff4d",
+      "ref": "master",
+      "url": "https://github.com/rime/weasel.git",
+      "checked_at": "2026-05-27T08:38:01Z"
+    }
+  },
+  "datas": {
+    "moran": {
+      "sha": "8c68ffdf64bc2d52a27ec5135eeb801a744b6fb5",
+      "ref": "main",
+      "url": "https://github.com/rimeinn/rime-moran.git",
+      "checked_at": "2026-05-27T08:38:01Z"
+    },
+    "tiger": {
+      "sha": "18047f2b7b5edaf92c7512111560bbda83ec483d",
+      "ref": "main",
+      "url": "https://github.com/a810439322/rime-tiger.git",
+      "checked_at": "2026-05-27T08:38:01Z"
+    }
+  }
 }
