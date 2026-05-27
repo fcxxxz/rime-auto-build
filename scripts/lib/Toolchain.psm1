@@ -94,6 +94,37 @@ function Get-BoostDefaultLibraryOptions {
     })
 }
 
+function Get-BoostLinkOptions {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture
+    )
+
+    if ($Architecture -eq 'x32') {
+        $wholeArchiveLibraries = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
+        foreach ($library in (Get-BoostLibraryNames -Architecture $Architecture -Components @(
+            'serialization',
+            'wserialization',
+            'thread',
+            'chrono',
+            'atomic'
+        ))) {
+            [void]$wholeArchiveLibraries.Add($library)
+        }
+
+        return @((Get-BoostLinkLibraries $Architecture) | ForEach-Object {
+            if ($wholeArchiveLibraries.Contains($_)) {
+                "/WHOLEARCHIVE:$_"
+            } else {
+                "/DEFAULTLIB:$_"
+            }
+        })
+    }
+
+    return Get-BoostDefaultLibraryOptions $Architecture
+}
+
 function Get-ExpectedBoostLibraries {
     return @(
         Get-BoostLinkLibraries 'x32'
@@ -211,7 +242,7 @@ function Add-BoostLinkLibrariesToProject {
         }
 
         $boostLibraries = Get-BoostLinkLibraries $arch
-        $boostOptions = Get-BoostDefaultLibraryOptions $arch
+        $boostOptions = Get-BoostLinkOptions $arch
 
         $additionalOptions = $link.SelectSingleNode('msb:AdditionalOptions', $ns)
         if (-not $additionalOptions) {
