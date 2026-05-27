@@ -101,27 +101,37 @@ jobs:
           Write-Host "VS installPath: $vsPath"
           Write-Host "VS installVersion: $vsVersion"
 
-          Write-Host "--- ATL/MFC related packages currently installed ---"
-          & $vswhere -latest -include packages -format json |
-            ConvertFrom-Json |
-            ForEach-Object { $_.packages } |
-            Where-Object { $_.id -match 'ATL|MFC|VC\.' -and $_.type -eq 'Component' } |
-            Select-Object id, version | Format-Table -AutoSize | Out-String | Write-Host
+          $atlbase = Get-ChildItem -Path $vsPath -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue | Select-Object -First 5
+          if ($atlbase) {
+            Write-Host "atlbase.h FOUND on disk:"
+            $atlbase | ForEach-Object { Write-Host "  $($_.FullName)" }
+            Write-Host "ATL files present, skip modify."
+            return
+          }
+          Write-Host "atlbase.h NOT FOUND on disk. Installing via setup.exe..."
 
           $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
-          $argLine = 'modify --installPath "' + $vsPath + '" --quiet --norestart --nocache --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATLMFC'
+          $argLine = 'modify --installPath "' + $vsPath + '" --quiet --norestart --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATLMFC --add Microsoft.VisualStudio.Component.VC.ATL.ARM64 --add Microsoft.VisualStudio.Component.VC.MFC.ARM64'
           Write-Host "Running: $installer $argLine"
 
           $p = Start-Process -FilePath $installer -ArgumentList $argLine -Wait -PassThru -NoNewWindow
           Write-Host "VS installer exit: $($p.ExitCode)"
 
-          Write-Host "--- VS setup logs (latest 5) ---"
-          Get-ChildItem $env:TEMP -Filter "dd_*.log" -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending | Select-Object -First 5 |
-            ForEach-Object {
-              Write-Host "===== $($_.Name) ($($_.Length) bytes) ====="
-              Get-Content $_.FullName -Tail 80
-            }
+          $atlbase2 = Get-ChildItem -Path $vsPath -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue | Select-Object -First 5
+          if ($atlbase2) {
+            Write-Host "atlbase.h NOW present:"
+            $atlbase2 | ForEach-Object { Write-Host "  $($_.FullName)" }
+          } else {
+            Write-Host "atlbase.h STILL missing after modify!"
+            Write-Host "--- VS setup logs ---"
+            Get-ChildItem $env:TEMP -Filter "dd_*.log" -ErrorAction SilentlyContinue |
+              Sort-Object LastWriteTime -Descending | Select-Object -First 3 |
+              ForEach-Object {
+                Write-Host "===== $($_.Name) ====="
+                Get-Content $_.FullName -Tail 50
+              }
+            throw "ATL install failed - atlbase.h missing"
+          }
 
           if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
             throw "VS installer modify failed: $($p.ExitCode)"
