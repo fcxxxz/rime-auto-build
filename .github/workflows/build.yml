@@ -1,0 +1,151 @@
+name: build
+
+on:
+  repository_dispatch:
+    types: [upstream-change]
+  workflow_dispatch:
+    inputs:
+      only_data:
+        description: '只构建该 data（留空=全部）'
+        required: false
+      only_weasel:
+        description: '只构建该 weasel（留空=全部）'
+        required: false
+  push:
+    paths:
+      - 'builds.yaml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.gen.outputs.include }}
+      tag:     ${{ steps.gen.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install powershell-yaml
+        shell: pwsh
+        run: Install-Module -Name powershell-yaml -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Generate matrix
+        id: gen
+        shell: pwsh
+        env:
+          EVENT_NAME:        ${{ github.event_name }}
+          DISPATCH_PAYLOAD:  ${{ toJSON(github.event.client_payload) }}
+          INPUT_ONLY_DATA:   ${{ inputs.only_data }}
+          INPUT_ONLY_WEASEL: ${{ inputs.only_weasel }}
+        run: ./scripts/plan-matrix.ps1
+
+  build:
+    needs: plan
+    if: ${{ fromJSON(needs.plan.outputs.include) != null && fromJSON(needs.plan.outputs.include)[0] != null }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.include) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone weasel (recursive)
+        shell: pwsh
+        run: |
+          git clone --recursive --depth 1 -b ${{ matrix.weasel_ref }} ${{ matrix.weasel_url }} weasel
+          Write-Host "weasel HEAD:"
+          git -C weasel rev-parse HEAD
+
+      - name: Clone data -> custom-data
+        shell: pwsh
+        run: |
+          git clone --depth 1 -b ${{ matrix.data_ref }} ${{ matrix.data_url }} custom-data
+          Write-Host "data HEAD:"
+          git -C custom-data rev-parse HEAD
+
+      - name: Cache Boost
+        id: boost-cache
+        uses: actions/cache@v4
+        with:
+          path: boost_1_84_0
+          key: boost-1.84.0-source-only-v1
+
+      - name: Download Boost (cache miss)
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/fetch-boost.ps1
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y --no-progress
+
+      - name: Run pack.ps1
+        shell: pwsh
+        run: ./pack.ps1
+
+      - name: Rename installer
+        id: rename
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem weasel-*-installer.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $f) { throw "no installer produced" }
+          # 原名形如 weasel-0.17.4.1-installer.exe；插入 data-weasel 段
+          $newName = $f.Name -replace '^weasel-', "weasel-${{ matrix.data_name }}-${{ matrix.weasel_name }}-"
+          Rename-Item $f.FullName $newName
+          "name=$newName" | Add-Content -Path $env:GITHUB_OUTPUT
+          Get-ChildItem $newName | Select-Object Name,Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.data_name }}-${{ matrix.weasel_name }}
+          path: ${{ steps.rename.outputs.name }}
+          if-no-files-found: error
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.data_name }}-${{ matrix.weasel_name }}
+          path: |
+            pack.log
+            .pack-work/**/*.log
+          if-no-files-found: ignore
+
+  release:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: installer-*
+          merge-multiple: true
+
+      - name: List
+        run: ls -la out/
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.tag }}
+          name:     ${{ needs.plan.outputs.tag }}
+          files:    out/*.exe
+          body: |
+            自动构建。
+
+            - 触发：`${{ github.event_name }}`
+            - SHA 快照：见 `state/last-seen.json`
+            - 配置：见 `builds.yaml`
