@@ -790,6 +790,21 @@ if ($missingBoost.Count -gt 0) {
   Write-Host 'Preparing Boost static libraries...'
   Write-Host "  missing: $($missingBoost -join ', ')"
   Write-WeaselEnvBat $WeaselRepo
+
+  $boostBootstrapCmd = "$VsDevCmdCall && cd /d `"$BoostRoot`" && call bootstrap.bat vc143"
+  & cmd.exe /d /s /c $boostBootstrapCmd
+  if ($LASTEXITCODE -ne 0) {
+    throw "Boost bootstrap failed with exit code $LASTEXITCODE"
+  }
+
+  $selectedCl = & cmd.exe /d /s /c "$VsDevCmdCall && where cl"
+  if ($LASTEXITCODE -ne 0 -or -not $selectedCl) {
+    throw 'VsDevCmd did not expose cl.exe for Boost.Build configuration.'
+  }
+  $boostProjectConfig = New-BoostProjectConfig ([string]$selectedCl[0])
+  Set-Content -LiteralPath (Join-Path $BoostRoot 'project-config.jam') -Value $boostProjectConfig -Encoding ASCII
+  Write-Host "  Boost.Build: $boostProjectConfig"
+
   $cmd = "$VsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat boost"
   & cmd.exe /d /s /c $cmd
   if ($LASTEXITCODE -ne 0) {

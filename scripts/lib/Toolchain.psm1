@@ -68,4 +68,10 @@ function Get-MissingBoostLibraries {
     })
 }
 
-Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries
+function New-BoostProjectConfig {
+    param([Parameter(Mandatory)][string]$CompilerPath)
+
+    return "using msvc : 14.3 : `"$CompilerPath`" ;"
+}
+
+Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig

@@ -73,3 +73,10 @@ Describe 'Get-MissingBoostLibraries' {
     Get-MissingBoostLibraries $root | Should -BeNullOrEmpty
   }
 }
+
+Describe 'New-BoostProjectConfig' {
+  It 'pins Boost.Build msvc-14.3 to the compiler selected by VsDevCmd' {
+    New-BoostProjectConfig 'C:\VS\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe' |
+      Should -Be 'using msvc : 14.3 : "C:\VS\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe" ;'
+  }
+}
