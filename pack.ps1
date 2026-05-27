@@ -738,10 +738,22 @@ Write-Host "Build arch  : $BuildArch"
 Write-Host ''
 
 Write-Host 'Probing MSVC/ATL environment...'
-$probeCmd = "$VsDevCmdCall && echo VCToolsInstallDir=%VCToolsInstallDir% && echo VCToolsVersion=%VCToolsVersion% && where cl && if exist `"%VCToolsInstallDir%atlmfc\include\atlbase.h`" (echo atlbase.h=FOUND:%VCToolsInstallDir%atlmfc\include\atlbase.h) else (echo atlbase.h=MISSING:%VCToolsInstallDir%atlmfc\include\atlbase.h && exit /b 1)"
+$expectedAtlBase = if ($MsvcToolsVersion) {
+  Join-Path (Split-Path -Parent $VsDevCmd) "..\..\VC\Tools\MSVC\$MsvcToolsVersion\atlmfc\include\atlbase.h" |
+    ForEach-Object { [System.IO.Path]::GetFullPath($_) }
+} else {
+  $null
+}
+if ($expectedAtlBase) {
+  Require-Path $expectedAtlBase 'ATL header for selected MSVC toolset'
+}
+$probeCmd = "$VsDevCmdCall && where cl && cl /Bv"
 & cmd.exe /d /s /c $probeCmd
 if ($LASTEXITCODE -ne 0) {
-  throw 'VsDevCmd selected a toolset without ATL headers (atlbase.h).'
+  throw 'VsDevCmd selected an unusable MSVC compiler.'
+}
+if ($expectedAtlBase) {
+  Write-Host "atlbase.h   : $expectedAtlBase"
 }
 Write-Host ''
 
