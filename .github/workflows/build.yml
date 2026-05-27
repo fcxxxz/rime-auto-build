@@ -55,9 +55,13 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.include) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Clone weasel (recursive)
         shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
         run: |
           git clone --recursive --depth 1 -b ${{ matrix.weasel_ref }} ${{ matrix.weasel_url }} weasel
           Write-Host "weasel HEAD:"
@@ -65,6 +69,8 @@ jobs:
 
       - name: Clone data -> custom-data
         shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
         run: |
           git clone --depth 1 -b ${{ matrix.data_ref }} ${{ matrix.data_url }} custom-data
           Write-Host "data HEAD:"
