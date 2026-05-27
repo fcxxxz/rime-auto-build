@@ -1137,15 +1137,16 @@ $skipRestoreLabelInsertion = @(
 )
 
 # Block Q: make uninstall and upgrade release user-profile files reliably.
-# WeaselServer.exe can keep librime userdb/build files open after /stop returns,
-# so every uninstall path issues a maintenance-stop (/stop, not /quit -- /quit would
-# write the manual-exit flag and suppress post-install auto-start), waits briefly,
-# then removes any residual server process by image name.
+# WeaselServer.exe can keep librime userdb/build files open after /stop returns.
+# Send the maintenance-stop asynchronously so a stuck old server/IPC path cannot
+# hang the installer before its UI appears, then remove any residual process by
+# image name. Use /stop, not /quit; /quit writes the manual-exit flag and
+# suppresses post-install auto-start.
 $stopServerMacroInsertion = @(
   '; ---PACK_PS1_STOP_WEASEL_SERVER_MACRO---',
   '!macro PACK_PS1_STOP_WEASEL_SERVER SERVER_EXE',
   '  IfFileExists "${SERVER_EXE}" 0 +2',
-  '  ExecWait ''"${SERVER_EXE}" /stop''',
+  '  Exec ''"${SERVER_EXE}" /stop''',
   '  Sleep 1500',
   '  nsExec::ExecToStack ''taskkill /IM WeaselServer.exe /F /T''',
   '  Pop $0',
