@@ -119,11 +119,7 @@ function Get-BoostLinkOptions {
         [string]$Architecture
     )
 
-    if ($Architecture -eq 'x32') {
-        return Get-BoostWholeArchiveOptions $Architecture
-    }
-
-    return Get-BoostDefaultLibraryOptions $Architecture
+    return Get-BoostWholeArchiveOptions $Architecture
 }
 
 function Get-ExpectedBoostLibraries {
