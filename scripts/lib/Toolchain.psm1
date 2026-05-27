@@ -46,16 +46,46 @@ function Get-DefaultToolsetForVsDevCmd {
     }
 }
 
+function Get-BoostLibraryNames {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture,
+
+        [Parameter(Mandatory)]
+        [string[]]$Components
+    )
+
+    return @($Components | ForEach-Object {
+        "libboost_$($_)-vc143-mt-s-$Architecture-1_84.lib"
+    })
+}
+
+function Get-BoostLinkLibraries {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture
+    )
+
+    return Get-BoostLibraryNames -Architecture $Architecture -Components @(
+        'filesystem',
+        'json',
+        'locale',
+        'regex',
+        'serialization',
+        'system',
+        'wserialization',
+        'thread',
+        'chrono',
+        'atomic'
+    )
+}
+
 function Get-ExpectedBoostLibraries {
     return @(
-        'libboost_filesystem-vc143-mt-s-x64-1_84.lib',
-        'libboost_json-vc143-mt-s-x64-1_84.lib',
-        'libboost_locale-vc143-mt-s-x64-1_84.lib',
-        'libboost_regex-vc143-mt-s-x64-1_84.lib',
-        'libboost_serialization-vc143-mt-s-x64-1_84.lib',
-        'libboost_system-vc143-mt-s-x64-1_84.lib',
-        'libboost_thread-vc143-mt-s-x64-1_84.lib',
-        'libboost_wserialization-vc143-mt-s-x64-1_84.lib'
+        Get-BoostLinkLibraries 'x32'
+        Get-BoostLinkLibraries 'x64'
     )
 }
 
@@ -86,4 +116,89 @@ function Select-ClPath {
     return $null
 }
 
-Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig, Select-ClPath
+function Add-BoostLibrariesToDependencies {
+    param(
+        [Parameter(Mandatory)][string]$AdditionalDependencies,
+        [Parameter(Mandatory)][string[]]$Libraries
+    )
+
+    $items = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($lib in $Libraries) {
+        if ($seen.Add($lib)) {
+            $items.Add($lib)
+        }
+    }
+
+    foreach ($item in ($AdditionalDependencies -split ';')) {
+        if ([string]::IsNullOrWhiteSpace($item)) {
+            continue
+        }
+        $trimmed = $item.Trim()
+        if ($seen.Add($trimmed)) {
+            $items.Add($trimmed)
+        }
+    }
+
+    return ($items -join ';')
+}
+
+function Add-BoostLinkLibrariesToProject {
+    param([Parameter(Mandatory)][string]$ProjectPath)
+
+    $xml = [xml](Get-Content -LiteralPath $ProjectPath -Raw)
+    $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+    $ns.AddNamespace('msb', 'http://schemas.microsoft.com/developer/msbuild/2003')
+
+    $changed = $false
+    $groups = $xml.SelectNodes('//msb:ItemDefinitionGroup', $ns)
+    foreach ($group in $groups) {
+        $condition = $group.GetAttribute('Condition')
+        $arch = $null
+        if ($condition -match "\$\(Configuration\)\|\$\(Platform\)'\s*==\s*'Release\|Win32'") {
+            $arch = 'x32'
+        } elseif ($condition -match "\$\(Configuration\)\|\$\(Platform\)'\s*==\s*'Release\|x64'") {
+            $arch = 'x64'
+        }
+        if (-not $arch) {
+            continue
+        }
+
+        $link = $group.SelectSingleNode('msb:Link', $ns)
+        if (-not $link) {
+            continue
+        }
+
+        $additional = $link.SelectSingleNode('msb:AdditionalDependencies', $ns)
+        if (-not $additional) {
+            $additional = $xml.CreateElement('AdditionalDependencies', $xml.DocumentElement.NamespaceURI)
+            [void]$link.AppendChild($additional)
+        }
+
+        $updated = Add-BoostLibrariesToDependencies `
+            -AdditionalDependencies $additional.InnerText `
+            -Libraries (Get-BoostLinkLibraries $arch)
+        if ($additional.InnerText -ne $updated) {
+            $additional.InnerText = $updated
+            $changed = $true
+        }
+    }
+
+    if ($changed) {
+        $settings = [System.Xml.XmlWriterSettings]::new()
+        $settings.Encoding = [System.Text.UTF8Encoding]::new($false)
+        $settings.Indent = $true
+        $settings.NewLineChars = "`r`n"
+        $writer = [System.Xml.XmlWriter]::Create($ProjectPath, $settings)
+        try {
+            $xml.Save($writer)
+        } finally {
+            $writer.Close()
+        }
+    }
+
+    return $changed
+}
+
+Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-BoostLinkLibraries, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig, Select-ClPath, Add-BoostLinkLibrariesToProject

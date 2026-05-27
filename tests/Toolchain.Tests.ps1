@@ -50,15 +50,17 @@ Describe 'Get-DefaultToolsetForVsDevCmd' {
 }
 
 Describe 'Get-MissingBoostLibraries' {
-  It 'reports Boost 1.84 x64 static libraries missing from stage lib' {
+  It 'reports Boost 1.84 static libraries missing from stage lib' {
     $root = Join-Path $TestDrive 'boost_1_84_0'
     New-Item -ItemType Directory -Path (Join-Path $root 'stage\lib') -Force | Out-Null
 
     $missing = Get-MissingBoostLibraries $root
 
     $missing | Should -Contain 'libboost_thread-vc143-mt-s-x64-1_84.lib'
+    $missing | Should -Contain 'libboost_thread-vc143-mt-s-x32-1_84.lib'
+    $missing | Should -Contain 'libboost_chrono-vc143-mt-s-x32-1_84.lib'
     $missing | Should -Contain 'libboost_wserialization-vc143-mt-s-x64-1_84.lib'
-    $missing.Count | Should -Be 8
+    $missing.Count | Should -Be 20
   }
 
   It 'returns no missing Boost libraries when the expected stage libs exist' {
@@ -71,6 +73,63 @@ Describe 'Get-MissingBoostLibraries' {
     }
 
     Get-MissingBoostLibraries $root | Should -BeNullOrEmpty
+  }
+}
+
+Describe 'Get-BoostLinkLibraries' {
+  It 'returns arch-specific Boost release libraries needed by Weasel link consumers' {
+    Get-BoostLinkLibraries 'x32' | Should -Be @(
+      'libboost_filesystem-vc143-mt-s-x32-1_84.lib',
+      'libboost_json-vc143-mt-s-x32-1_84.lib',
+      'libboost_locale-vc143-mt-s-x32-1_84.lib',
+      'libboost_regex-vc143-mt-s-x32-1_84.lib',
+      'libboost_serialization-vc143-mt-s-x32-1_84.lib',
+      'libboost_system-vc143-mt-s-x32-1_84.lib',
+      'libboost_wserialization-vc143-mt-s-x32-1_84.lib',
+      'libboost_thread-vc143-mt-s-x32-1_84.lib',
+      'libboost_chrono-vc143-mt-s-x32-1_84.lib',
+      'libboost_atomic-vc143-mt-s-x32-1_84.lib'
+    )
+
+    Get-BoostLinkLibraries 'x64' | Should -Contain 'libboost_thread-vc143-mt-s-x64-1_84.lib'
+  }
+}
+
+Describe 'Add-BoostLinkLibrariesToProject' {
+  It 'adds Release Win32/x64 Boost libs without duplicating existing dependencies' {
+    $projectPath = Join-Path $TestDrive 'WeaselServer.vcxproj'
+    [System.IO.File]::WriteAllText(
+      $projectPath,
+      @'
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Link>
+      <AdditionalDependencies>imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Link>
+      <AdditionalDependencies>imm32.lib;libboost_thread-vc143-mt-s-x64-1_84.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Link>
+      <AdditionalDependencies>debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>
+'@,
+      [System.Text.Encoding]::UTF8
+    )
+
+    Add-BoostLinkLibrariesToProject $projectPath
+    Add-BoostLinkLibrariesToProject $projectPath
+
+    $content = Get-Content -LiteralPath $projectPath -Raw
+    $content | Should -Match 'libboost_filesystem-vc143-mt-s-x32-1_84\.lib;libboost_json-vc143-mt-s-x32-1_84\.lib;libboost_locale-vc143-mt-s-x32-1_84\.lib;libboost_regex-vc143-mt-s-x32-1_84\.lib;libboost_serialization-vc143-mt-s-x32-1_84\.lib;libboost_system-vc143-mt-s-x32-1_84\.lib;libboost_wserialization-vc143-mt-s-x32-1_84\.lib;libboost_thread-vc143-mt-s-x32-1_84\.lib;libboost_chrono-vc143-mt-s-x32-1_84\.lib;libboost_atomic-vc143-mt-s-x32-1_84\.lib;imm32\.lib;%\(AdditionalDependencies\)'
+    $content | Should -Match 'libboost_filesystem-vc143-mt-s-x64-1_84\.lib;libboost_json-vc143-mt-s-x64-1_84\.lib;libboost_locale-vc143-mt-s-x64-1_84\.lib;libboost_regex-vc143-mt-s-x64-1_84\.lib;libboost_serialization-vc143-mt-s-x64-1_84\.lib;libboost_system-vc143-mt-s-x64-1_84\.lib;libboost_wserialization-vc143-mt-s-x64-1_84\.lib;libboost_thread-vc143-mt-s-x64-1_84\.lib;libboost_chrono-vc143-mt-s-x64-1_84\.lib;libboost_atomic-vc143-mt-s-x64-1_84\.lib;imm32\.lib;%\(AdditionalDependencies\)'
+    ([regex]::Matches($content, 'libboost_thread-vc143-mt-s-x64-1_84\.lib')).Count | Should -Be 1
+    $content | Should -Match 'debug\.lib;%\(AdditionalDependencies\)'
   }
 }
 

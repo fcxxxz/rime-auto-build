@@ -911,6 +911,22 @@ Write-WeaselEnvBat $WeaselRepo
 Ensure-OutputDataBuildGuards $WeaselRepo
 Ensure-OutputInstallerSupportFiles $WeaselRepo
 
+Write-Host 'Patching Weasel project Boost link dependencies...'
+foreach ($relativeProject in @(
+  'WeaselTSF\WeaselTSF.vcxproj',
+  'WeaselServer\WeaselServer.vcxproj',
+  'WeaselDeployer\WeaselDeployer.vcxproj'
+)) {
+  $projectPath = Join-Path $WeaselRepo $relativeProject
+  Require-Path $projectPath $relativeProject
+  if (Add-BoostLinkLibrariesToProject $projectPath) {
+    Write-Host "  patched $relativeProject"
+  } else {
+    Write-Host "  already patched $relativeProject"
+  }
+}
+Write-Host ''
+
 $cmd = "$VsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"WEASEL_CUSTOM_DATA_DIR=$CustomDataDir`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat weasel $BuildArch"
 & cmd.exe /d /s /c $cmd
 if ($LASTEXITCODE -ne 0) {
