@@ -102,7 +102,11 @@ jobs:
           Write-Host "VS installVersion: $vsVersion"
 
           function Find-AtlBase {
-            Get-ChildItem -Path (Join-Path $vsPath 'VC\Tools\MSVC') -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue | Select-Object -First 5
+            Get-ChildItem -Path (Join-Path $vsPath 'VC\Tools\MSVC') -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue |
+              Sort-Object {
+                if ($_.FullName -match '\\MSVC\\([0-9.]+)\\atlmfc\\') { [Version]$Matches[1] } else { [Version]'0.0' }
+              } -Descending |
+              Select-Object -First 5
           }
 
           $atlbase = Find-AtlBase
@@ -122,10 +126,10 @@ jobs:
           Write-Host "atlbase.h found:"
           $atlbase | ForEach-Object { Write-Host "  $($_.FullName)" }
 
-          # 解出 MSVC 版本号（如 14.51.36231），让 vcvarsall 在 pack.ps1 里强制选这个 toolset
+          # 解出 MSVC 版本号（如 14.51.36231），让 pack.ps1 通过 VsDevCmd -vcvars_ver 选这个 toolset
           $msvcVer = $atlbase[0].FullName -replace '.*\\MSVC\\([0-9.]+)\\atlmfc\\.*','$1'
-          Write-Host "Pinning VCToolsVersion=$msvcVer for downstream pack.ps1"
-          "VCToolsVersion=$msvcVer" | Add-Content -Path $env:GITHUB_ENV
+          Write-Host "Pinning PACK_MSVC_TOOLS_VERSION=$msvcVer for downstream pack.ps1"
+          "PACK_MSVC_TOOLS_VERSION=$msvcVer" | Add-Content -Path $env:GITHUB_ENV
 
       - name: Run pack.ps1
         shell: pwsh

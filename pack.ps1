@@ -1,6 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $PSCommandPath
+Import-Module (Join-Path $ScriptDir 'scripts\lib\Toolchain.psm1') -Force
 
 # ---------------------------------------------------------------------------
 # User-tweakable paths and options.
@@ -20,6 +21,7 @@ $BuildArch         = 'x64'              # x64 | Win32 | arm64
 
 # Leave $null to auto-detect. Override only if auto-detect picks the wrong thing.
 $VsDevCmdPath      = $null              # path to VsDevCmd.bat (any VS 2022 edition)
+$MsvcToolsVersion  = $env:PACK_MSVC_TOOLS_VERSION  # e.g. '14.51.36231'; $null = VsDevCmd default
 $SdkVer            = $null              # e.g. '10.0.22621.0'; $null = latest installed
 $PlatformToolset   = $null              # e.g. 'v143'; $null = auto from VS edition
 $BjamToolset       = $null              # e.g. 'msvc-14.3'; $null = auto from VS edition
@@ -668,17 +670,7 @@ Required workload: "Desktop development with C++" (includes MSVC, ATL, MFC, Wind
 }
 
 function Detect-Toolset([string]$vsDevCmd) {
-  # VsDevCmd path looks like ...\Microsoft Visual Studio\<year>\<edition>\Common7\Tools\VsDevCmd.bat
-  $year = $null
-  if ($vsDevCmd -match '\\Microsoft Visual Studio\\(\d{4})\\') { $year = $Matches[1] }
-  switch ($year) {
-    '2019' { return @{ Platform = 'v142'; Bjam = 'msvc-14.2' } }
-    '2022' { return @{ Platform = 'v143'; Bjam = 'msvc-14.3' } }
-    default {
-      # Future VS: assume v143/msvc-14.3 - user can override.
-      return @{ Platform = 'v143'; Bjam = 'msvc-14.3' }
-    }
-  }
+  return Get-DefaultToolsetForVsDevCmd $vsDevCmd
 }
 
 function Detect-LatestSdk {
@@ -712,6 +704,7 @@ if (-not $PlatformToolset -or -not $BjamToolset) {
   if (-not $PlatformToolset) { $PlatformToolset = $auto.Platform }
   if (-not $BjamToolset)     { $BjamToolset     = $auto.Bjam }
 }
+$VsDevCmdCall = New-VsDevCmdCall -VsDevCmd $VsDevCmd -MsvcToolsVersion $MsvcToolsVersion
 
 # ---------------------------------------------------------------------------
 # Step 0c: Other required system tools.
@@ -738,9 +731,18 @@ Write-Host "Custom data : $CustomDataDir"
 Write-Host "Boost root  : $BoostRoot"
 Write-Host "Output dir  : $OutputDir"
 Write-Host "VsDevCmd    : $VsDevCmd"
+Write-Host "MSVC tools  : $(if ($MsvcToolsVersion) { $MsvcToolsVersion } else { 'VsDevCmd default' })"
 Write-Host "SDK version : $SdkVer"
 Write-Host "Toolset     : $PlatformToolset ($BjamToolset)"
 Write-Host "Build arch  : $BuildArch"
+Write-Host ''
+
+Write-Host 'Probing MSVC/ATL environment...'
+$probeCmd = "$VsDevCmdCall && echo VCToolsInstallDir=%VCToolsInstallDir% && echo VCToolsVersion=%VCToolsVersion% && where cl && if exist `"%VCToolsInstallDir%atlmfc\include\atlbase.h`" (echo atlbase.h=FOUND:%VCToolsInstallDir%atlmfc\include\atlbase.h) else (echo atlbase.h=MISSING:%VCToolsInstallDir%atlmfc\include\atlbase.h && exit /b 1)"
+& cmd.exe /d /s /c $probeCmd
+if ($LASTEXITCODE -ne 0) {
+  throw 'VsDevCmd selected a toolset without ATL headers (atlbase.h).'
+}
 Write-Host ''
 
 # ---------------------------------------------------------------------------
@@ -800,7 +802,7 @@ if ($missingLibrime.Count -gt 0) {
       $oldCmakePolicyVersionMinimum = $env:CMAKE_POLICY_VERSION_MINIMUM
       $env:CMAKE_POLICY_VERSION_MINIMUM = '3.5'
       try {
-        $cmd = "call `"$VsDevCmd`" -arch=amd64 -host_arch=amd64 && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat librime"
+        $cmd = "$VsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat librime"
         & cmd.exe /d /s /c $cmd
         if ($LASTEXITCODE -ne 0) {
           throw "local librime build failed with exit code $LASTEXITCODE. Expected weasel\include\rime_api.h / lib64\rime.lib / output\rime.dll after preparation."
@@ -854,7 +856,7 @@ Write-WeaselEnvBat $WeaselRepo
 Ensure-OutputDataBuildGuards $WeaselRepo
 Ensure-OutputInstallerSupportFiles $WeaselRepo
 
-$cmd = "call `"$VsDevCmd`" -arch=amd64 -host_arch=amd64 && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"WEASEL_CUSTOM_DATA_DIR=$CustomDataDir`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat weasel $BuildArch"
+$cmd = "$VsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"WEASEL_CUSTOM_DATA_DIR=$CustomDataDir`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat weasel $BuildArch"
 & cmd.exe /d /s /c $cmd
 if ($LASTEXITCODE -ne 0) {
   throw "build.bat (weasel) failed with exit code $LASTEXITCODE"
@@ -1271,7 +1273,7 @@ Write-Host ("  patched install.nsi - " + ($msg -join '; '))
 Write-Host ''
 
 # Now run the installer step.
-$cmd = "call `"$VsDevCmd`" -arch=amd64 -host_arch=amd64 && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat installer $BuildArch"
+$cmd = "$VsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat installer $BuildArch"
 & cmd.exe /d /s /c $cmd
 if ($LASTEXITCODE -ne 0) {
   throw "build.bat (installer) failed with exit code $LASTEXITCODE"
