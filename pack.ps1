@@ -785,6 +785,31 @@ if (-not (Test-Path -LiteralPath $plumMarker)) {
 }
 Require-Path $plumMarker 'plum\rime-install.bat (in isolated work tree)'
 
+$missingBoost = Get-MissingBoostLibraries $BoostRoot
+if ($missingBoost.Count -gt 0) {
+  Write-Host 'Preparing Boost static libraries...'
+  Write-Host "  missing: $($missingBoost -join ', ')"
+  Write-WeaselEnvBat $WeaselRepo
+  $cmd = "$VsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat boost"
+  & cmd.exe /d /s /c $cmd
+  if ($LASTEXITCODE -ne 0) {
+    throw "build.bat (boost) failed with exit code $LASTEXITCODE"
+  }
+
+  $missingBoost = Get-MissingBoostLibraries $BoostRoot
+  if ($missingBoost.Count -gt 0) {
+    throw @"
+Boost static library preparation incomplete.
+Expected Boost 1.84 x64 static libraries under:
+  $(Join-Path $BoostRoot 'stage\lib')
+
+Missing:
+  $($missingBoost -join "`n  ")
+"@
+  }
+  Write-Host ''
+}
+
 # librime submodule: needed for librime\data\minimal\default.yaml, which we use
 # as the template to synthesize a working output\data\default.yaml.
 # get-rime.ps1 only fetches prebuilt headers/libs, NOT the source tree.
