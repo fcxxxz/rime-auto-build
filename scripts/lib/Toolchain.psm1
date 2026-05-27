@@ -102,24 +102,7 @@ function Get-BoostLinkOptions {
     )
 
     if ($Architecture -eq 'x32') {
-        $wholeArchiveLibraries = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
-        foreach ($library in (Get-BoostLibraryNames -Architecture $Architecture -Components @(
-            'serialization',
-            'wserialization',
-            'thread',
-            'chrono',
-            'atomic'
-        ))) {
-            [void]$wholeArchiveLibraries.Add($library)
-        }
-
-        return @((Get-BoostLinkLibraries $Architecture) | ForEach-Object {
-            if ($wholeArchiveLibraries.Contains($_)) {
-                "/WHOLEARCHIVE:$_"
-            } else {
-                "/DEFAULTLIB:$_"
-            }
-        })
+        return Get-BoostLinkLibraries $Architecture
     }
 
     return Get-BoostDefaultLibraryOptions $Architecture
@@ -215,6 +198,26 @@ function Add-BoostOptionsToAdditionalOptions {
     return "$current $insert %(AdditionalOptions)"
 }
 
+function Remove-BoostOptionsFromAdditionalOptions {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalOptions
+    )
+
+    $items = New-Object System.Collections.Generic.List[string]
+    foreach ($item in ($AdditionalOptions -split '\s+')) {
+        if ([string]::IsNullOrWhiteSpace($item)) {
+            continue
+        }
+        $trimmed = $item.Trim()
+        if ($trimmed -match '^(?:/DEFAULTLIB:|/WHOLEARCHIVE:)?libboost_[^"\s;]+\.lib$') {
+            continue
+        }
+        $items.Add($trimmed)
+    }
+
+    return ($items -join ' ')
+}
+
 function Add-BoostLinkLibrariesToProject {
     param([Parameter(Mandatory)][string]$ProjectPath)
 
@@ -250,8 +253,10 @@ function Add-BoostLinkLibrariesToProject {
             [void]$link.AppendChild($additionalOptions)
         }
 
+        $cleanOptions = Remove-BoostOptionsFromAdditionalOptions `
+            -AdditionalOptions $additionalOptions.InnerText
         $updatedOptions = Add-BoostOptionsToAdditionalOptions `
-            -AdditionalOptions $additionalOptions.InnerText `
+            -AdditionalOptions $cleanOptions `
             -Options $boostOptions
         if ($additionalOptions.InnerText -ne $updatedOptions) {
             $additionalOptions.InnerText = $updatedOptions
