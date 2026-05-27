@@ -36,7 +36,7 @@ datas:
 '@ | Set-Content $tmp.FullName
     try {
       $config = Read-BuildsYaml -Path $tmp.FullName
-      $config.excludes | Should -BeOfType ([System.Collections.IList])
+      Should -ActualValue $config.excludes -BeOfType ([System.Collections.IList])
       $config.excludes.Count | Should -Be 0
     } finally { Remove-Item $tmp.FullName -Force }
   }
