@@ -747,11 +747,13 @@ $expectedAtlBase = if ($MsvcToolsVersion) {
 if ($expectedAtlBase) {
   Require-Path $expectedAtlBase 'ATL header for selected MSVC toolset'
 }
-$probeCmd = "$VsDevCmdCall && where cl && cl /Bv"
+$probeCmd = "$VsDevCmdCall && where cl"
 & cmd.exe /d /s /c $probeCmd
 if ($LASTEXITCODE -ne 0) {
-  throw 'VsDevCmd selected an unusable MSVC compiler.'
+  throw 'VsDevCmd did not expose cl.exe.'
 }
+$probeVersionCmd = "$VsDevCmdCall && cl /Bv || exit /b 0"
+& cmd.exe /d /s /c $probeVersionCmd
 if ($expectedAtlBase) {
   Write-Host "atlbase.h   : $expectedAtlBase"
 }
