@@ -6,40 +6,52 @@ BeforeAll {
 Describe 'New-InstallerManifest' {
   It 'records the installer file and exact source repositories' {
     $manifest = New-InstallerManifest `
-      -InstallerName 'weasel-moran-official-0.17.4-installer.exe' `
+      -InstallerName 'weasel-moran-rime-0.17.4-installer.exe' `
       -DataName 'moran' `
+      -DataDisplay '魔然' `
       -DataUrl 'https://github.com/rimeinn/rime-moran.git' `
       -DataRef 'main' `
       -DataSha '1111111111111111111111111111111111111111' `
-      -WeaselName 'official' `
+      -DataCommitTime '2026-05-27T10:11:12+00:00' `
+      -WeaselName 'rime' `
+      -WeaselDisplay '官方小狼毫' `
       -WeaselUrl 'https://github.com/rime/weasel.git' `
       -WeaselRef 'master' `
-      -WeaselSha '2222222222222222222222222222222222222222'
+      -WeaselSha '2222222222222222222222222222222222222222' `
+      -WeaselCommitTime '2026-05-28T01:02:03+00:00'
 
-    $manifest.installer | Should -Be 'weasel-moran-official-0.17.4-installer.exe'
+    $manifest.installer | Should -Be 'weasel-moran-rime-0.17.4-installer.exe'
     $manifest.data.name | Should -Be 'moran'
+    $manifest.data.display | Should -Be '魔然'
     $manifest.data.sha | Should -Be '1111111111111111111111111111111111111111'
-    $manifest.weasel.name | Should -Be 'official'
+    $manifest.data.commit_time | Should -Be '2026-05-27T10:11:12+00:00'
+    $manifest.weasel.name | Should -Be 'rime'
+    $manifest.weasel.display | Should -Be '官方小狼毫'
     $manifest.weasel.sha | Should -Be '2222222222222222222222222222222222222222'
+    $manifest.weasel.commit_time | Should -Be '2026-05-28T01:02:03+00:00'
   }
 }
 
 Describe 'New-ReleaseNotes' {
-  It 'lists each installer with data and Weasel source details' {
+  It 'lists each installer in a structured table with Chinese names and commit times' {
     $manifests = @(
       [pscustomobject]@{
-        installer = 'weasel-moran-official-0.17.4-installer.exe'
+        installer = 'weasel-moran-rime-0.17.4-installer.exe'
         data = [pscustomobject]@{
           name = 'moran'
+          display = '魔然'
           url = 'https://github.com/rimeinn/rime-moran.git'
           ref = 'main'
           sha = '1111111111111111111111111111111111111111'
+          commit_time = '2026-05-27T10:11:12+00:00'
         }
         weasel = [pscustomobject]@{
-          name = 'official'
+          name = 'rime'
+          display = '官方小狼毫'
           url = 'https://github.com/rime/weasel.git'
           ref = 'master'
           sha = '2222222222222222222222222222222222222222'
+          commit_time = '2026-05-28T01:02:03+00:00'
         }
       }
     )
@@ -47,9 +59,10 @@ Describe 'New-ReleaseNotes' {
     $notes = New-ReleaseNotes -EventName 'workflow_dispatch' -StatePath 'state/last-seen.json' -BuildsPath 'builds.yaml' -Manifests $manifests
 
     $notes | Should -Match '## 安装包说明'
-    $notes | Should -Match 'weasel-moran-official-0\.17\.4-installer\.exe'
-    $notes | Should -Match '方案：`moran` \(`main` @ `1111111`\) https://github\.com/rimeinn/rime-moran\.git'
-    $notes | Should -Match '小狼毫：`official` \(`master` @ `2222222`\) https://github\.com/rime/weasel\.git'
+    $notes | Should -Match '\| 安装包 \| 方案 \| 小狼毫 \|'
+    $notes | Should -Match 'weasel-moran-rime-0\.17\.4-installer\.exe'
+    $notes | Should -Match '魔然 \(`moran`\)<br>`main` @ `1111111`<br>2026-05-27T10:11:12\+00:00<br>https://github\.com/rimeinn/rime-moran\.git'
+    $notes | Should -Match '官方小狼毫 \(`rime`\)<br>`master` @ `2222222`<br>2026-05-28T01:02:03\+00:00<br>https://github\.com/rime/weasel\.git'
   }
 }
 
@@ -64,13 +77,17 @@ Describe 'release notes scripts' {
     & (Join-Path $PSScriptRoot '..\scripts\write-installer-manifest.ps1') `
       -InstallerName 'weasel-moran-fxliang-0.17.4-installer.exe' `
       -DataName 'moran' `
+      -DataDisplay '魔然' `
       -DataUrl 'https://github.com/rimeinn/rime-moran.git' `
       -DataRef 'main' `
       -DataSha '1111111111111111111111111111111111111111' `
+      -DataCommitTime '2026-05-27T10:11:12+00:00' `
       -WeaselName 'fxliang' `
+      -WeaselDisplay 'fxliang 小狼毫' `
       -WeaselUrl 'https://github.com/fxliang/weasel.git' `
       -WeaselRef 'pb' `
       -WeaselSha '2222222222222222222222222222222222222222' `
+      -WeaselCommitTime '2026-05-28T01:02:03+00:00' `
       -OutputPath $manifestPath
 
     & (Join-Path $PSScriptRoot '..\scripts\write-release-notes.ps1') `
@@ -80,6 +97,7 @@ Describe 'release notes scripts' {
 
     $notes = Get-Content -LiteralPath $notesPath -Raw
     $notes | Should -Match 'weasel-moran-fxliang-0\.17\.4-installer\.exe'
-    $notes | Should -Match '小狼毫：`fxliang` \(`pb` @ `2222222`\) https://github\.com/fxliang/weasel\.git'
+    $notes | Should -Match '魔然 \(`moran`\)<br>`main` @ `1111111`<br>2026-05-27T10:11:12Z'
+    $notes | Should -Match 'fxliang 小狼毫 \(`fxliang`\)<br>`pb` @ `2222222`<br>2026-05-28T01:02:03Z'
   }
 }

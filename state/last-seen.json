@@ -1,30 +1,48 @@
 {
   "weasels": {
-    "official": {
+    "rime": {
       "sha": "93eec2dc33dfcf04c356cce87732b638888fff4d",
-      "ref": "master",
-      "checked_at": "2026-05-27T22:12:13Z",
-      "url": "https://github.com/rime/weasel.git"
+      "checked_at": "2026-05-28T08:14:20Z",
+      "url": "https://github.com/rime/weasel.git",
+      "ref": "master"
     },
-    "mine": {
+    "qing": {
       "sha": "485b7a18e71bb73aef5d16f9b0d328af689d6527",
-      "ref": "master",
-      "checked_at": "2026-05-27T22:12:13Z",
-      "url": "https://github.com/a810439322/weasel.git"
+      "checked_at": "2026-05-28T08:14:20Z",
+      "url": "https://github.com/a810439322/weasel.git",
+      "ref": "master"
+    },
+    "fxliang": {
+      "sha": "ebd07740052e83cbb6a591f92bfebe587aa7548a",
+      "checked_at": "2026-05-28T08:14:20Z",
+      "url": "https://github.com/fxliang/weasel.git",
+      "ref": "pb"
     }
   },
   "datas": {
-    "moran": {
-      "sha": "2fd0dbb9a44bf39ed844dc2ae6f353eb2ec03b4b",
-      "ref": "main",
-      "checked_at": "2026-05-27T22:12:13Z",
-      "url": "https://github.com/rimeinn/rime-moran.git"
-    },
     "tiger": {
       "sha": "904c63fdd795dc2f3b3eaae462954222cbbcd525",
-      "ref": "main",
-      "checked_at": "2026-05-27T22:12:13Z",
-      "url": "https://github.com/a810439322/rime-tiger.git"
+      "checked_at": "2026-05-28T08:14:20Z",
+      "url": "https://github.com/a810439322/rime-tiger.git",
+      "ref": "main"
+    },
+    "moran": {
+      "sha": "2fd0dbb9a44bf39ed844dc2ae6f353eb2ec03b4b",
+      "checked_at": "2026-05-28T08:14:20Z",
+      "url": "https://github.com/rimeinn/rime-moran.git",
+      "ref": "main"
+    },
+    "092wb": {
+      "sha": "9b1d9538c70abfc2df9ce7d3861d4d48073cdea7",
+      "checked_at": "2026-05-28T08:14:20Z",
+      "url": "https://github.com/092wb/092wb.git",
+      "ref": "main"
+    },
+    "lutai": {
+      "sha": "58723ffe7361ab0ec49ac74c81219fe86e11086b",
+      "checked_at": "2026-05-28T08:14:20Z",
+      "url": "https://github.com/Flauver/lutai.git",
+      "ref": "dev"
     }
   }
 }

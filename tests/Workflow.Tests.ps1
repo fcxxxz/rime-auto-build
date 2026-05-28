@@ -133,6 +133,17 @@ Describe 'build workflow release notes' {
     $content | Should -Match 'body_path:\s*out/release-notes\.md'
   }
 
+  It 'records display names and commit times in installer manifests' {
+    $content = Get-Content -LiteralPath $WorkflowPath -Raw
+
+    $content | Should -Match 'data_commit_time='
+    $content | Should -Match 'weasel_commit_time='
+    $content | Should -Match "-DataDisplay '\$\{\{ matrix\.data_display \}\}'"
+    $content | Should -Match "-DataCommitTime '\$\{\{ steps\.data-rev\.outputs\.data_commit_time \}\}'"
+    $content | Should -Match "-WeaselDisplay '\$\{\{ matrix\.weasel_display \}\}'"
+    $content | Should -Match "-WeaselCommitTime '\$\{\{ steps\.weasel-rev\.outputs\.weasel_commit_time \}\}'"
+  }
+
   It 'uses dedicated scripts for installer manifests and release notes' {
     Test-Path -LiteralPath $WriteInstallerManifestPath | Should -BeTrue
     Test-Path -LiteralPath $WriteReleaseNotesPath | Should -BeTrue

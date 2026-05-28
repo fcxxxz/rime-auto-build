@@ -2,22 +2,35 @@
 # 改这个文件后 push 会触发一次全量构建。
 
 weasels:
-  - name: official
+  - name: rime
+    display: 官方小狼毫
     url: https://github.com/rime/weasel.git
     ref: master
-  - name: mine
+  - name: qing
+    display: 我的小狼毫
     url: https://github.com/a810439322/weasel.git
     ref: master
   - name: fxliang
+    display: fxliang 小狼毫
     url: https://github.com/fxliang/weasel.git
     ref: pb
 
 datas:
   - name: tiger
+    display: 虎码
     url: https://github.com/a810439322/rime-tiger.git
     ref: main
   - name: moran
+    display: 魔然
     url: https://github.com/rimeinn/rime-moran.git
     ref: main
+  - name: 092wb
+    display: 092五笔
+    url: https://github.com/092wb/092wb.git
+    ref: main
+  - name: lutai
+    display: 露台码
+    url: https://github.com/Flauver/lutai.git
+    ref: dev
 
 excludes: []

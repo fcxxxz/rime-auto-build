@@ -14,26 +14,41 @@
 
 到 [Releases](../../releases) 下载对应 data + weasel 的 `.exe`。第一次运行 Windows SmartScreen 可能拦截，点 **更多信息 → 仍要运行**。
 
-文件名格式：
+### 文件名
 
 `weasel-{方案名}-{小狼毫版本名}-{小狼毫版本号}-installer.exe`
 
-其中：
+示例：
 
-- `方案名` 来自 `builds.yaml` 的 `datas`，表示打进安装包的 Rime 方案、词库、Lua、OpenCC 等数据。
-- `小狼毫版本名` 来自 `builds.yaml` 的 `weasels`，表示用于编译安装器的小狼毫源码仓库。
-- Release 正文会列出每个 `.exe` 对应的方案仓库、方案提交、小狼毫仓库、小狼毫提交。
+- `weasel-tiger-rime-0.17.4-installer.exe`：虎码 + 官方小狼毫。
+- `weasel-tiger-qing-0.17.4-installer.exe`：虎码 + 我的小狼毫。
 
-当前自动构建的方案仓库：
+### 方案名
 
-- `tiger`: `https://github.com/a810439322/rime-tiger.git` (`main`)
-- `moran`: `https://github.com/rimeinn/rime-moran.git` (`main`)
+| 短名 | 中文名 | 仓库 | 分支 |
+| --- | --- | --- | --- |
+| `tiger` | 虎码 | `https://github.com/a810439322/rime-tiger.git` | `main` |
+| `moran` | 魔然 | `https://github.com/rimeinn/rime-moran.git` | `main` |
+| `092wb` | 092五笔 | `https://github.com/092wb/092wb.git` | `main` |
+| `lutai` | 露台码 | `https://github.com/Flauver/lutai.git` | `dev` |
 
-当前自动构建的小狼毫仓库：
+### 小狼毫版本名
 
-- `official`: `https://github.com/rime/weasel.git` (`master`)
-- `mine`: `https://github.com/a810439322/weasel.git` (`master`)
-- `fxliang`: `https://github.com/fxliang/weasel.git` (`pb`)
+| 短名 | 说明 | 仓库 | 分支 |
+| --- | --- | --- | --- |
+| `rime` | 官方小狼毫 | `https://github.com/rime/weasel.git` | `master` |
+| `qing` | 我的小狼毫 | `https://github.com/a810439322/weasel.git` | `master` |
+| `fxliang` | fxliang 小狼毫 | `https://github.com/fxliang/weasel.git` | `pb` |
+
+### Release 正文怎么看
+
+每次 Release 的 **安装包说明** 会按表格列出每个 `.exe` 的来源：
+
+| 安装包 | 方案 | 小狼毫 |
+| --- | --- | --- |
+| 文件名 | 中文名、短名、分支、commit、最后提交时间、仓库 | 中文名、短名、分支、commit、最后提交时间、仓库 |
+
+README 里只列当前配置；具体某个安装包来自哪个提交、最后提交时间是多少，以对应 Release 正文为准。
 
 ## 添加新的 data 或 weasel 仓库
 

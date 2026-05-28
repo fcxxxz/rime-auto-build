@@ -141,9 +141,11 @@ function Expand-BuildMatrix {
             if ($excludeSet.ContainsKey("$($d.name)|$($w.name)")) { continue }
             $result.Add([pscustomobject]@{
                 data_name   = $d.name
+                data_display = if ($d.PSObject.Properties.Name -contains 'display') { $d.display } else { $d.name }
                 data_url    = $d.url
                 data_ref    = $d.ref
                 weasel_name = $w.name
+                weasel_display = if ($w.PSObject.Properties.Name -contains 'display') { $w.display } else { $w.name }
                 weasel_url  = $w.url
                 weasel_ref  = $w.ref
             })

@@ -2,13 +2,17 @@
 param(
   [Parameter(Mandatory)][string]$InstallerName,
   [Parameter(Mandatory)][string]$DataName,
+  [Parameter(Mandatory)][string]$DataDisplay,
   [Parameter(Mandatory)][string]$DataUrl,
   [Parameter(Mandatory)][string]$DataRef,
   [Parameter(Mandatory)][string]$DataSha,
+  [Parameter(Mandatory)][string]$DataCommitTime,
   [Parameter(Mandatory)][string]$WeaselName,
+  [Parameter(Mandatory)][string]$WeaselDisplay,
   [Parameter(Mandatory)][string]$WeaselUrl,
   [Parameter(Mandatory)][string]$WeaselRef,
   [Parameter(Mandatory)][string]$WeaselSha,
+  [Parameter(Mandatory)][string]$WeaselCommitTime,
   [Parameter(Mandatory)][string]$OutputPath
 )
 
@@ -21,13 +25,17 @@ Import-Module (Join-Path $ScriptDir 'lib\ReleaseNotes.psm1') -Force
 $manifest = New-InstallerManifest `
   -InstallerName $InstallerName `
   -DataName $DataName `
+  -DataDisplay $DataDisplay `
   -DataUrl $DataUrl `
   -DataRef $DataRef `
   -DataSha $DataSha `
+  -DataCommitTime $DataCommitTime `
   -WeaselName $WeaselName `
+  -WeaselDisplay $WeaselDisplay `
   -WeaselUrl $WeaselUrl `
   -WeaselRef $WeaselRef `
-  -WeaselSha $WeaselSha
+  -WeaselSha $WeaselSha `
+  -WeaselCommitTime $WeaselCommitTime
 
 $parent = Split-Path -Parent $OutputPath
 if ($parent -and -not (Test-Path -LiteralPath $parent)) {
