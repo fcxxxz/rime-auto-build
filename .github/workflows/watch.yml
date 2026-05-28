@@ -21,10 +21,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install powershell-yaml
-        shell: pwsh
-        run: Install-Module -Name powershell-yaml -Scope CurrentUser -Force -SkipPublisherCheck
-
       - name: Probe upstream
         id: probe
         shell: pwsh

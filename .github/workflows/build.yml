@@ -31,10 +31,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install powershell-yaml
-        shell: pwsh
-        run: Install-Module -Name powershell-yaml -Scope CurrentUser -Force -SkipPublisherCheck
-
       - name: Generate matrix
         id: gen
         shell: pwsh

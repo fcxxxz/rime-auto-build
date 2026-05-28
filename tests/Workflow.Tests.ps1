@@ -1,6 +1,19 @@
 BeforeAll {
   $WorkflowPath = Join-Path $PSScriptRoot '..\.github\workflows\build.yml'
+  $WatchWorkflowPath = Join-Path $PSScriptRoot '..\.github\workflows\watch.yml'
   $PrepareBoostPath = Join-Path $PSScriptRoot '..\scripts\prepare-boost.ps1'
+}
+
+Describe 'workflow YAML parsing' {
+  It 'does not install powershell-yaml from PSGallery during CI planning' {
+    $content = @(
+      Get-Content -LiteralPath $WorkflowPath -Raw
+      Get-Content -LiteralPath $WatchWorkflowPath -Raw
+    ) -join "`n"
+
+    $content | Should -Not -Match 'Install powershell-yaml'
+    $content | Should -Not -Match 'Install-Module -Name powershell-yaml'
+  }
 }
 
 Describe 'build workflow Boost cache' {

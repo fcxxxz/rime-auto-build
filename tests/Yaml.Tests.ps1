@@ -5,6 +5,21 @@ BeforeAll {
 }
 
 Describe 'Read-BuildsYaml' {
+  It 'does not require the external powershell-yaml module for repository build configs' {
+    $module = Get-Module -Name powershell-yaml
+    if ($module) { Remove-Module powershell-yaml -Force }
+
+    try {
+      $config = Read-BuildsYaml -Path $FixturePath
+
+      $config.weasels.Count | Should -Be 2
+      $config.datas.Count | Should -Be 2
+      $config.excludes.Count | Should -Be 1
+    } finally {
+      if ($module) { Import-Module powershell-yaml -DisableNameChecking }
+    }
+  }
+
   It 'parses weasels' {
     $config = Read-BuildsYaml -Path $FixturePath
     $config.weasels.Count | Should -Be 2
