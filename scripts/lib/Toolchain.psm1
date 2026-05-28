@@ -141,10 +141,6 @@ function Get-MissingBoostLibraries {
 function New-BoostProjectConfig {
     param([Parameter(Mandatory)][string]$CompilerPath)
 
-    if ($CompilerPath -match '^(?<prefix>.*\\bin\\)Host(?:X86|X64)\\(?:x86|x64)\\cl\.exe$') {
-        $CompilerPath = "$($Matches.prefix)HostX86\x86\cl.exe"
-    }
-
     return "using msvc : 14.3 : `"$CompilerPath`" ;"
 }
 

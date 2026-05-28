@@ -32,6 +32,11 @@ Describe 'New-VsDevCmdCall' {
     New-VsDevCmdCall -VsDevCmd 'C:\VS\Common7\Tools\VsDevCmd.bat' -MsvcToolsVersion '14.51.36231' -Architecture x86 -HostArchitecture x86 |
       Should -Be 'call "C:\VS\Common7\Tools\VsDevCmd.bat" -arch=x86 -host_arch=x86 -vcvars_ver=14.51'
   }
+
+  It 'can request an x64-native environment when needed' {
+    New-VsDevCmdCall -VsDevCmd 'C:\VS\Common7\Tools\VsDevCmd.bat' -MsvcToolsVersion '14.51.36231' -Architecture amd64 -HostArchitecture amd64 |
+      Should -Be 'call "C:\VS\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64 -vcvars_ver=14.51'
+  }
 }
 
 Describe 'Get-DefaultToolsetForVsDevCmd' {
@@ -177,9 +182,9 @@ Describe 'Add-BoostLinkLibrariesToProject' {
 }
 
 Describe 'New-BoostProjectConfig' {
-  It 'pins Boost.Build msvc-14.3 to the 32-bit MSVC compiler path' {
+  It 'keeps the selected MSVC target compiler path for Boost.Build' {
     New-BoostProjectConfig 'C:\VS\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe' |
-      Should -Be 'using msvc : 14.3 : "C:\VS\VC\Tools\MSVC\14.51.36231\bin\HostX86\x86\cl.exe" ;'
+      Should -Be 'using msvc : 14.3 : "C:\VS\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe" ;'
   }
 
   It 'keeps non-standard compiler invocations unchanged' {

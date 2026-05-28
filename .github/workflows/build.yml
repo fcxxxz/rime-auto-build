@@ -44,7 +44,7 @@ jobs:
   build:
     needs: plan
     if: ${{ fromJSON(needs.plan.outputs.include) != null && fromJSON(needs.plan.outputs.include)[0] != null }}
-    runs-on: windows-latest
+    runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
@@ -118,7 +118,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: boost_1_84_0
-          key: boost-1.84.0-${{ runner.os }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-static-v1
+          key: boost-1.84.0-${{ runner.os }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-static-v2
           restore-keys: |
             boost-1.84.0-source-only-v1
 

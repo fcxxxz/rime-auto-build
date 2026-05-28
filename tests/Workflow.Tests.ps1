@@ -1,6 +1,7 @@
 BeforeAll {
   $WorkflowPath = Join-Path $PSScriptRoot '..\.github\workflows\build.yml'
   $WatchWorkflowPath = Join-Path $PSScriptRoot '..\.github\workflows\watch.yml'
+  $PackPath = Join-Path $PSScriptRoot '..\pack.ps1'
   $PrepareBoostPath = Join-Path $PSScriptRoot '..\scripts\prepare-boost.ps1'
 }
 
@@ -54,5 +55,27 @@ Describe 'build workflow Boost cache' {
 
     ([regex]::Matches($content, '\$missingBoost\s*=\s*@\(Get-MissingBoostLibraries \$BoostRoot\)')).Count |
       Should -Be 2
+  }
+
+  It 'uses a new prepared Boost cache generation after toolchain alignment changes' {
+    $content = Get-Content -LiteralPath $WorkflowPath -Raw
+
+    $content | Should -Match 'static-v2'
+  }
+}
+
+Describe 'build workflow Windows toolchain' {
+  It 'pins the build job to Windows Server 2022 for VS 2022 and Boost vc143 compatibility' {
+    $content = Get-Content -LiteralPath $WorkflowPath -Raw
+
+    $content | Should -Match '(?s)build:\s+needs: plan.*?runs-on:\s*windows-2022'
+  }
+}
+
+Describe 'pack script Boost preparation' {
+  It 'keeps the Boost preparation developer prompt on x86 so build.bat boost can produce both Win32 and x64 libraries' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match '(?s)\$boostVsDevCmdCall\s*=\s*New-VsDevCmdCall.*?-Architecture x86\s*`.*?-HostArchitecture x86'
   }
 }
