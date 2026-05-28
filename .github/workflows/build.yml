@@ -76,23 +76,8 @@ jobs:
           Write-Host "data HEAD:"
           git -C custom-data rev-parse HEAD
 
-      - name: Cache Boost
-        id: boost-cache
-        uses: actions/cache@v4
-        with:
-          path: boost_1_84_0
-          key: boost-1.84.0-source-only-v1
-
-      - name: Download Boost (cache miss)
-        if: steps.boost-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: ./scripts/fetch-boost.ps1
-
-      - name: Install NSIS
-        shell: pwsh
-        run: choco install nsis -y --no-progress
-
       - name: Install Visual Studio ATL component
+        id: msvc
         shell: pwsh
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -130,6 +115,37 @@ jobs:
           $msvcVer = $atlbase[0].FullName -replace '.*\\MSVC\\([0-9.]+)\\atlmfc\\.*','$1'
           Write-Host "Pinning PACK_MSVC_TOOLS_VERSION=$msvcVer for downstream pack.ps1"
           "PACK_MSVC_TOOLS_VERSION=$msvcVer" | Add-Content -Path $env:GITHUB_ENV
+          "msvc_tools_version=$msvcVer" | Add-Content -Path $env:GITHUB_OUTPUT
+
+      - name: Restore Boost cache
+        id: boost-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: boost_1_84_0
+          key: boost-1.84.0-${{ runner.os }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-static-v1
+          restore-keys: |
+            boost-1.84.0-source-only-v1
+
+      - name: Download Boost (cache miss)
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/fetch-boost.ps1
+
+      - name: Prepare Boost static libraries
+        shell: pwsh
+        run: ./scripts/prepare-boost.ps1
+
+      - name: Save Boost cache
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: boost_1_84_0
+          key: ${{ steps.boost-cache.outputs.cache-primary-key }}
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y --no-progress
 
       - name: Run pack.ps1
         shell: pwsh
