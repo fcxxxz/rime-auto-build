@@ -70,6 +70,31 @@ Describe 'New-ReleaseNotes' {
     $notes | Should -Not -Match '`main` @ `1111111`'
     $notes | Should -Not -Match '\[仓库\]'
   }
+
+  It 'can recover installer manifests from the old detailed release table' {
+    $oldNotes = @'
+自动构建。
+
+## 安装包说明
+
+| 安装包 | 方案 | 小狼毫 |
+| --- | --- | --- |
+| `weasel-092wb-rime-0.17.4.0.93eec2d-installer.exe` | 092五笔 (`092wb`)<br>`main` @ `9b1d953`<br>2026-04-28T20:11:51Z<br>https://github.com/092wb/092wb.git | 官方小狼毫 (`rime`)<br>`master` @ `93eec2d`<br>2026-03-06T09:26:08Z<br>https://github.com/rime/weasel.git |
+'@
+
+    $manifests = @(ConvertFrom-ReleaseNotes -Markdown $oldNotes)
+
+    $manifests.Count | Should -Be 1
+    $manifests[0].installer | Should -Be 'weasel-092wb-rime-0.17.4.0.93eec2d-installer.exe'
+    $manifests[0].data.name | Should -Be '092wb'
+    $manifests[0].data.display | Should -Be '092五笔'
+    $manifests[0].data.ref | Should -Be 'main'
+    $manifests[0].data.sha | Should -Be '9b1d953'
+    $manifests[0].data.commit_time | Should -Be '2026-04-28T20:11:51Z'
+    $manifests[0].weasel.name | Should -Be 'rime'
+    $manifests[0].weasel.display | Should -Be '官方小狼毫'
+    $manifests[0].weasel.url | Should -Be 'https://github.com/rime/weasel.git'
+  }
 }
 
 Describe 'release notes scripts' {

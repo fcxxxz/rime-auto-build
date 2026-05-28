@@ -115,6 +115,61 @@ function Format-InstallerLink {
   return "[$InstallerName](https://github.com/$Repository/releases/download/$ReleaseTag/$encodedName)"
 }
 
+function ConvertFrom-ReleaseNotes {
+  param(
+    [Parameter(Mandatory)][string]$Markdown
+  )
+
+  $manifests = New-Object System.Collections.Generic.List[object]
+  $rowPattern = '^\|\s*`(?<installer>[^`]+)`\s*\|\s*(?<data>.*?)\s*\|\s*(?<weasel>.*?)\s*\|\s*$'
+  foreach ($line in @($Markdown -split "`r?`n")) {
+    $row = [regex]::Match($line, $rowPattern)
+    if (-not $row.Success) {
+      continue
+    }
+
+    $data = ConvertFrom-OldSourceCell -Cell $row.Groups['data'].Value
+    $weasel = ConvertFrom-OldSourceCell -Cell $row.Groups['weasel'].Value
+    if ($null -eq $data -or $null -eq $weasel) {
+      continue
+    }
+
+    $manifests.Add([pscustomobject]@{
+      installer = $row.Groups['installer'].Value
+      data = $data
+      weasel = $weasel
+    })
+  }
+
+  return $manifests.ToArray()
+}
+
+function ConvertFrom-OldSourceCell {
+  param(
+    [Parameter(Mandatory)][string]$Cell
+  )
+
+  $parts = @($Cell -split '<br>')
+  if ($parts.Count -lt 4) {
+    return $null
+  }
+
+  $nameMatch = [regex]::Match($parts[0].Trim(), '^(?<display>.*?)\s+\(`(?<name>[^`]+)`\)$')
+  $revMatch = [regex]::Match($parts[1].Trim(), '^`(?<ref>[^`]+)`\s+@\s+`(?<sha>[^`]+)`$')
+  if (-not $nameMatch.Success -or -not $revMatch.Success) {
+    return $null
+  }
+
+  return [pscustomobject]@{
+    name = $nameMatch.Groups['name'].Value
+    display = $nameMatch.Groups['display'].Value
+    url = $parts[3].Trim()
+    ref = $revMatch.Groups['ref'].Value
+    sha = $revMatch.Groups['sha'].Value
+    commit_time = $parts[2].Trim()
+  }
+}
+
 function New-ReleaseNotes {
   param(
     [Parameter(Mandatory)][string]$EventName,
@@ -151,4 +206,4 @@ function New-ReleaseNotes {
   return ($lines -join "`n") + "`n"
 }
 
-Export-ModuleMember -Function New-InstallerManifest,New-ReleaseNotes
+Export-ModuleMember -Function New-InstallerManifest,New-ReleaseNotes,ConvertFrom-ReleaseNotes

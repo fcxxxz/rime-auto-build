@@ -324,22 +324,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all installer artifacts
+      - name: Restore previous release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/restore-previous-release-assets.ps1 -Repository '${{ github.repository }}' -CurrentTag '${{ needs.plan.outputs.tag }}'
+
+      - name: Download current installer artifacts
         uses: actions/download-artifact@v4
         with:
-          path: out
+          path: out/current
           pattern: installer-*
           merge-multiple: true
 
-      - name: Download all installer manifests
+      - name: Download current installer manifests
         uses: actions/download-artifact@v4
         with:
-          path: out/manifests
+          path: out/current-manifests
           pattern: manifest-*
           merge-multiple: true
 
+      - name: Merge release assets
+        shell: pwsh
+        run: ./scripts/merge-release-assets.ps1
+
       - name: List
-        run: ls -la out/
+        run: ls -la out/packages/
 
       - name: Write release notes
         shell: pwsh
@@ -350,5 +360,7 @@ jobs:
         with:
           tag_name: ${{ needs.plan.outputs.tag }}
           name:     ${{ needs.plan.outputs.tag }}
-          files:    out/*.exe
+          files: |
+            out/packages/*.exe
+            out/release-manifests.zip
           body_path: out/release-notes.md

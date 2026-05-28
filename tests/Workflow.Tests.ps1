@@ -4,6 +4,8 @@ BeforeAll {
   $PackPath = Join-Path $PSScriptRoot '..\pack.ps1'
   $PrepareBoostPath = Join-Path $PSScriptRoot '..\scripts\prepare-boost.ps1'
   $SaveLibrimeCachePath = Join-Path $PSScriptRoot '..\scripts\save-librime-cache.ps1'
+  $MergeReleaseAssetsPath = Join-Path $PSScriptRoot '..\scripts\merge-release-assets.ps1'
+  $RestorePreviousReleaseAssetsPath = Join-Path $PSScriptRoot '..\scripts\restore-previous-release-assets.ps1'
   $WriteInstallerManifestPath = Join-Path $PSScriptRoot '..\scripts\write-installer-manifest.ps1'
   $WriteReleaseNotesPath = Join-Path $PSScriptRoot '..\scripts\write-release-notes.ps1'
 }
@@ -129,6 +131,10 @@ Describe 'build workflow release notes' {
   It 'uploads one manifest per installer and renders release notes from manifests' {
     $content = Get-Content -LiteralPath $WorkflowPath -Raw
 
+    $restorePrevious = $content.IndexOf('name: Restore previous release assets', [StringComparison]::Ordinal)
+    $downloadInstallers = $content.IndexOf('name: Download current installer artifacts', [StringComparison]::Ordinal)
+    $downloadManifests = $content.IndexOf('name: Download current installer manifests', [StringComparison]::Ordinal)
+    $mergeAssets = $content.IndexOf('name: Merge release assets', [StringComparison]::Ordinal)
     $rename = $content.IndexOf('name: Rename installer', [StringComparison]::Ordinal)
     $manifest = $content.IndexOf('name: Write installer manifest', [StringComparison]::Ordinal)
     $uploadManifest = $content.IndexOf('name: Upload installer manifest', [StringComparison]::Ordinal)
@@ -137,11 +143,27 @@ Describe 'build workflow release notes' {
 
     $manifest | Should -BeGreaterThan $rename
     $uploadManifest | Should -BeGreaterThan $manifest
-    $writeNotes | Should -BeGreaterThan $uploadManifest
+    $restorePrevious | Should -BeGreaterOrEqual 0
+    $downloadInstallers | Should -BeGreaterThan $restorePrevious
+    $downloadManifests | Should -BeGreaterThan $downloadInstallers
+    $mergeAssets | Should -BeGreaterThan $downloadManifests
+    $writeNotes | Should -BeGreaterThan $mergeAssets
     $release | Should -BeGreaterThan $writeNotes
     $content | Should -Match 'body_path:\s*out/release-notes\.md'
     $content | Should -Match "-ReleaseTag '\$\{\{ needs\.plan\.outputs\.tag \}\}'"
     $content | Should -Match "-Repository '\$\{\{ github\.repository \}\}'"
+    $content | Should -Match 'files:\s*\|\s*out/packages/\*\.exe\s*out/release-manifests\.zip'
+    $content | Should -Match 'GH_TOKEN:\s*\$\{\{ github\.token \}\}'
+  }
+
+  It 'restores previous assets only from a complete release baseline' {
+    Test-Path -LiteralPath $RestorePreviousReleaseAssetsPath | Should -BeTrue
+    $content = Get-Content -LiteralPath $RestorePreviousReleaseAssetsPath -Raw
+
+    $content | Should -Match 'expectedInstallerCount'
+    $content | Should -Match "release-manifests\.zip"
+    $content | Should -Match 'Skipping incomplete previous release'
+    $content | Should -Match 'installerCount -ge \$expectedInstallerCount'
   }
 
   It 'records display names and commit times in installer manifests' {
@@ -156,6 +178,8 @@ Describe 'build workflow release notes' {
   }
 
   It 'uses dedicated scripts for installer manifests and release notes' {
+    Test-Path -LiteralPath $MergeReleaseAssetsPath | Should -BeTrue
+    Test-Path -LiteralPath $RestorePreviousReleaseAssetsPath | Should -BeTrue
     Test-Path -LiteralPath $WriteInstallerManifestPath | Should -BeTrue
     Test-Path -LiteralPath $WriteReleaseNotesPath | Should -BeTrue
   }
