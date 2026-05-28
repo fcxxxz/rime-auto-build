@@ -83,7 +83,7 @@ function Format-SourceCell {
   $commitTime = Get-ManifestValue -Object $Source -PropertyName 'commit_time'
   $url = Get-ManifestValue -Object $Source -PropertyName 'url'
 
-  return "$display (``$name``)<br>``$ref`` @ ``$sha``<br>$commitTime<br>$url"
+  return "$display (``$name``)<br>``$ref`` @ ``$sha``<br>$commitTime<br>[仓库]($url)"
 }
 
 function New-ReleaseNotes {

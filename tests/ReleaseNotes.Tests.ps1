@@ -61,8 +61,8 @@ Describe 'New-ReleaseNotes' {
     $notes | Should -Match '## 安装包说明'
     $notes | Should -Match '\| 安装包 \| 方案 \| 小狼毫 \|'
     $notes | Should -Match 'weasel-moran-rime-0\.17\.4-installer\.exe'
-    $notes | Should -Match '魔然 \(`moran`\)<br>`main` @ `1111111`<br>2026-05-27T10:11:12\+00:00<br>https://github\.com/rimeinn/rime-moran\.git'
-    $notes | Should -Match '官方小狼毫 \(`rime`\)<br>`master` @ `2222222`<br>2026-05-28T01:02:03\+00:00<br>https://github\.com/rime/weasel\.git'
+    $notes | Should -Match '魔然 \(`moran`\)<br>`main` @ `1111111`<br>2026-05-27T10:11:12\+00:00<br>\[仓库\]\(https://github\.com/rimeinn/rime-moran\.git\)'
+    $notes | Should -Match '官方小狼毫 \(`rime`\)<br>`master` @ `2222222`<br>2026-05-28T01:02:03\+00:00<br>\[仓库\]\(https://github\.com/rime/weasel\.git\)'
   }
 }
 
@@ -97,7 +97,7 @@ Describe 'release notes scripts' {
 
     $notes = Get-Content -LiteralPath $notesPath -Raw
     $notes | Should -Match 'weasel-moran-fxliang-0\.17\.4-installer\.exe'
-    $notes | Should -Match '魔然 \(`moran`\)<br>`main` @ `1111111`<br>2026-05-27T10:11:12Z'
-    $notes | Should -Match 'fxliang 小狼毫 \(`fxliang`\)<br>`pb` @ `2222222`<br>2026-05-28T01:02:03Z'
+    $notes | Should -Match '魔然 \(`moran`\)<br>`main` @ `1111111`<br>2026-05-27T10:11:12Z<br>\[仓库\]\(https://github\.com/rimeinn/rime-moran\.git\)'
+    $notes | Should -Match 'fxliang 小狼毫 \(`fxliang`\)<br>`pb` @ `2222222`<br>2026-05-28T01:02:03Z<br>\[仓库\]\(https://github\.com/fxliang/weasel\.git\)'
   }
 }

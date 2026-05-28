@@ -6,8 +6,10 @@
 
 ## 工作机制
 
+简单说：它每小时整点检查一次上游仓库，发现更新后只打包受影响的方案和小狼毫组合，并发布到 Release。
+
 - `builds.yaml`：单一配置，列 weasel 仓库和 data 仓库。
-- `watch.yml`：每小时 Linux runner，对每个上游仓库跑 `git ls-remote`，对比 `state/last-seen.json`。SHA 变了就 commit 新 state、`repository_dispatch` 触发构建。
+- `watch.yml`：每小时整点检查一次（按北京时间理解；GitHub Actions 可能延迟几分钟实际启动），对每个上游仓库跑 `git ls-remote`，对比 `state/last-seen.json`。SHA 变了就 commit 新 state、`repository_dispatch` 触发构建。
 - `build.yml`：Windows runner 矩阵，`pack.ps1` 出 `weasel-{data}-{weasel}-{version}-installer.exe`，全部聚合到一个 Release。
 
 ## 安装包
@@ -27,25 +29,25 @@
 
 | 短名 | 中文名 | 仓库 | 分支 |
 | --- | --- | --- | --- |
-| `tiger` | 虎码 | `https://github.com/a810439322/rime-tiger.git` | `main` |
-| `moran` | 魔然 | `https://github.com/rimeinn/rime-moran.git` | `main` |
-| `092wb` | 092五笔 | `https://github.com/092wb/092wb.git` | `main` |
-| `lutai` | 露台码 | `https://github.com/Flauver/lutai.git` | `dev` |
-| `openfly` | 小鹤音形 | `https://github.com/amorphobia/openfly.git` | `main` |
-| `crane` | 凇鹤拼音 | `https://github.com/kchen0x/rime-crane.git` | `main` |
-| `snow-pinyin` | 冰雪拼音 | `https://github.com/rimeinn/rime-snow-pinyin.git` | `main` |
-| `jdhe` | 简单鹤 | `https://github.com/rimeinn/rime-JDhe.git` | `main` |
-| `kagiroi` | 日语 | `https://github.com/rimeinn/rime-kagiroi.git` | `main` |
-| `mungyeong` | 韩语 | `https://github.com/rimeinn/rime-mungyeong.git` | `main` |
-| `zrlong` | 龙码双拼 | `https://github.com/rimeinn/rime-zrlong.git` | `main` |
+| `tiger` | 虎码 | [a810439322/rime-tiger](https://github.com/a810439322/rime-tiger.git) | `main` |
+| `moran` | 魔然 | [rimeinn/rime-moran](https://github.com/rimeinn/rime-moran.git) | `main` |
+| `092wb` | 092五笔 | [092wb/092wb](https://github.com/092wb/092wb.git) | `main` |
+| `lutai` | 露台码 | [Flauver/lutai](https://github.com/Flauver/lutai.git) | `dev` |
+| `openfly` | 小鹤音形 | [amorphobia/openfly](https://github.com/amorphobia/openfly.git) | `main` |
+| `crane` | 凇鹤拼音 | [kchen0x/rime-crane](https://github.com/kchen0x/rime-crane.git) | `main` |
+| `snow-pinyin` | 冰雪拼音 | [rimeinn/rime-snow-pinyin](https://github.com/rimeinn/rime-snow-pinyin.git) | `main` |
+| `jdhe` | 简单鹤 | [rimeinn/rime-JDhe](https://github.com/rimeinn/rime-JDhe.git) | `main` |
+| `kagiroi` | 日语 | [rimeinn/rime-kagiroi](https://github.com/rimeinn/rime-kagiroi.git) | `main` |
+| `mungyeong` | 韩语 | [rimeinn/rime-mungyeong](https://github.com/rimeinn/rime-mungyeong.git) | `main` |
+| `zrlong` | 龙码双拼 | [rimeinn/rime-zrlong](https://github.com/rimeinn/rime-zrlong.git) | `main` |
 
 ### 小狼毫版本名
 
 | 短名 | 说明 | 仓库 | 分支 |
 | --- | --- | --- | --- |
-| `rime` | 官方小狼毫 | `https://github.com/rime/weasel.git` | `master` |
-| `qing` | 晴版小狼毫 | `https://github.com/a810439322/weasel.git` | `master` |
-| `fxliang` | fxliang 小狼毫 | `https://github.com/fxliang/weasel.git` | `pb` |
+| `rime` | 官方小狼毫 | [rime/weasel](https://github.com/rime/weasel.git) | `master` |
+| `qing` | 晴版小狼毫 | [a810439322/weasel](https://github.com/a810439322/weasel.git) | `master` |
+| `fxliang` | fxliang 小狼毫 | [fxliang/weasel](https://github.com/fxliang/weasel.git) | `pb` |
 
 ### Release 正文怎么看
 

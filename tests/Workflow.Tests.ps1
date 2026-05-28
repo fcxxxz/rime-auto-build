@@ -20,6 +20,15 @@ Describe 'workflow YAML parsing' {
   }
 }
 
+Describe 'watch workflow schedule' {
+  It 'runs on every Beijing hour zero using the equivalent UTC cron' {
+    $content = Get-Content -LiteralPath $WatchWorkflowPath -Raw
+
+    $content | Should -Match "cron:\s*'0 \* \* \* \*'"
+    $content | Should -Not -Match "cron:\s*'17 \* \* \* \*'"
+  }
+}
+
 Describe 'build workflow Boost cache' {
   It 'saves prepared Boost cache before installer-only dependencies and pack.ps1' {
     $content = Get-Content -LiteralPath $WorkflowPath -Raw
