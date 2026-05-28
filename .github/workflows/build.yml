@@ -343,7 +343,7 @@ jobs:
 
       - name: Write release notes
         shell: pwsh
-        run: ./scripts/write-release-notes.ps1 -ManifestRoot out/manifests -OutputPath out/release-notes.md -EventName '${{ github.event_name }}'
+        run: ./scripts/write-release-notes.ps1 -ManifestRoot out/manifests -OutputPath out/release-notes.md -EventName '${{ github.event_name }}' -ReleaseTag '${{ needs.plan.outputs.tag }}' -Repository '${{ github.repository }}'
 
       - name: Release
         uses: softprops/action-gh-release@v2

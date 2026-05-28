@@ -140,6 +140,8 @@ Describe 'build workflow release notes' {
     $writeNotes | Should -BeGreaterThan $uploadManifest
     $release | Should -BeGreaterThan $writeNotes
     $content | Should -Match 'body_path:\s*out/release-notes\.md'
+    $content | Should -Match "-ReleaseTag '\$\{\{ needs\.plan\.outputs\.tag \}\}'"
+    $content | Should -Match "-Repository '\$\{\{ github\.repository \}\}'"
   }
 
   It 'records display names and commit times in installer manifests' {

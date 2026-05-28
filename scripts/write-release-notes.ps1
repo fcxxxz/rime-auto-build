@@ -4,7 +4,9 @@ param(
   [string]$OutputPath = 'out/release-notes.md',
   [string]$EventName = $env:GITHUB_EVENT_NAME,
   [string]$StatePath = 'state/last-seen.json',
-  [string]$BuildsPath = 'builds.yaml'
+  [string]$BuildsPath = 'builds.yaml',
+  [string]$ReleaseTag = '',
+  [string]$Repository = $env:GITHUB_REPOSITORY
 )
 
 Set-StrictMode -Version Latest
@@ -27,6 +29,8 @@ $notes = New-ReleaseNotes `
   -EventName $EventName `
   -StatePath $StatePath `
   -BuildsPath $BuildsPath `
+  -ReleaseTag $ReleaseTag `
+  -Repository $Repository `
   -Manifests $manifests
 
 $parent = Split-Path -Parent $OutputPath

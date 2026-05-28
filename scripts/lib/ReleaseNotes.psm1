@@ -71,19 +71,48 @@ function Get-ManifestValue {
   return $Default
 }
 
-function Format-SourceCell {
+function Format-ChinaTime {
+  param(
+    [Parameter(Mandatory)][string]$Value
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return ''
+  }
+
+  $styles = [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal
+  $timestamp = [datetimeoffset]::Parse($Value, [Globalization.CultureInfo]::InvariantCulture, $styles)
+  return $timestamp.ToUniversalTime().AddHours(8).ToString('yyyy-MM-dd HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Format-SourceSummaryCell {
   param(
     [Parameter(Mandatory)]$Source
   )
 
   $name = Get-ManifestValue -Object $Source -PropertyName 'name'
   $display = Get-ManifestValue -Object $Source -PropertyName 'display' -Default $name
-  $ref = Get-ManifestValue -Object $Source -PropertyName 'ref'
-  $sha = Format-ShortSha (Get-ManifestValue -Object $Source -PropertyName 'sha')
-  $commitTime = Get-ManifestValue -Object $Source -PropertyName 'commit_time'
-  $url = Get-ManifestValue -Object $Source -PropertyName 'url'
+  $commitTime = Format-ChinaTime (Get-ManifestValue -Object $Source -PropertyName 'commit_time')
 
-  return "$display (``$name``)<br>``$ref`` @ ``$sha``<br>$commitTime<br>[仓库]($url)"
+  if ([string]::IsNullOrWhiteSpace($commitTime)) {
+    return $display
+  }
+  return "$display<br>$commitTime"
+}
+
+function Format-InstallerLink {
+  param(
+    [Parameter(Mandatory)][string]$InstallerName,
+    [Parameter(Mandatory)][string]$ReleaseTag,
+    [Parameter(Mandatory)][string]$Repository
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ReleaseTag) -or [string]::IsNullOrWhiteSpace($Repository)) {
+    return "``$InstallerName``"
+  }
+
+  $encodedName = [Uri]::EscapeDataString($InstallerName)
+  return "[$InstallerName](https://github.com/$Repository/releases/download/$ReleaseTag/$encodedName)"
 }
 
 function New-ReleaseNotes {
@@ -91,6 +120,8 @@ function New-ReleaseNotes {
     [Parameter(Mandatory)][string]$EventName,
     [Parameter(Mandatory)][string]$StatePath,
     [Parameter(Mandatory)][string]$BuildsPath,
+    [string]$ReleaseTag = '',
+    [string]$Repository = '',
     [Parameter(Mandatory)][object[]]$Manifests
   )
 
@@ -100,17 +131,21 @@ function New-ReleaseNotes {
   $lines.Add("- 触发：``$EventName``")
   $lines.Add("- SHA 快照：见 ``$StatePath``")
   $lines.Add("- 配置：见 ``$BuildsPath``")
+  if (-not [string]::IsNullOrWhiteSpace($ReleaseTag)) {
+    $lines.Add("- Release：``$ReleaseTag``")
+  }
   $lines.Add('')
   $lines.Add('## 安装包说明')
   $lines.Add('')
-  $lines.Add('| 安装包 | 方案 | 小狼毫 |')
+  $lines.Add('| 方案 | 小狼毫 | 安装包 |')
   $lines.Add('| --- | --- | --- |')
 
   foreach ($manifest in @($Manifests | Sort-Object installer)) {
     $installer = Get-ManifestValue -Object $manifest -PropertyName 'installer'
-    $dataCell = Format-SourceCell -Source $manifest.data
-    $weaselCell = Format-SourceCell -Source $manifest.weasel
-    $lines.Add("| ``$installer`` | $dataCell | $weaselCell |")
+    $dataCell = Format-SourceSummaryCell -Source $manifest.data
+    $weaselCell = Format-SourceSummaryCell -Source $manifest.weasel
+    $installerCell = Format-InstallerLink -InstallerName $installer -ReleaseTag $ReleaseTag -Repository $Repository
+    $lines.Add("| $dataCell | $weaselCell | $installerCell |")
   }
 
   return ($lines -join "`n") + "`n"
