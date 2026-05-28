@@ -101,7 +101,7 @@ Describe 'Get-BoostLinkLibraries' {
 }
 
 Describe 'Add-BoostLinkLibrariesToProject' {
-  It 'forces Boost static libraries with full-path whole-archive options for Win32 and x64' {
+  It 'adds Boost libraries as normal dependencies while keeping full-path whole-archive options' {
     $projectPath = Join-Path $TestDrive 'WeaselServer.vcxproj'
     [System.IO.File]::WriteAllText(
       $projectPath,
@@ -132,18 +132,34 @@ Describe 'Add-BoostLinkLibrariesToProject' {
     Add-BoostLinkLibrariesToProject $projectPath
     Add-BoostLinkLibrariesToProject $projectPath
 
-    $content = Get-Content -LiteralPath $projectPath -Raw
-    $content | Should -Match '/WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_filesystem-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_json-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_locale-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_regex-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_serialization-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_system-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_wserialization-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_thread-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_chrono-vc143-mt-s-x32-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_atomic-vc143-mt-s-x32-1_84\.lib" %\(AdditionalOptions\)'
-    $content | Should -Match '/DEBUG /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_filesystem-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_json-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_locale-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_regex-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_serialization-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_system-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_wserialization-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_thread-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_chrono-vc143-mt-s-x64-1_84\.lib" /WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_atomic-vc143-mt-s-x64-1_84\.lib" %\(AdditionalOptions\)'
-    $content | Should -Not -Match '<AdditionalDependencies>[^<]*libboost_'
-    $content | Should -Not -Match '/DEFAULTLIB:libboost_thread-vc143-mt-s-x32-1_84\.lib'
-    $content | Should -Not -Match '/DEFAULTLIB:libboost_serialization-vc143-mt-s-x32-1_84\.lib'
-    $content | Should -Not -Match '/WHOLEARCHIVE:libboost_thread-vc143-mt-s-x32-1_84\.lib'
-    $content | Should -Not -Match '\s+libboost_thread-vc143-mt-s-x32-1_84\.lib\s+'
-    $content | Should -Not -Match '/DEFAULTLIB:libboost_thread-vc143-mt-s-x64-1_84\.lib'
-    ([regex]::Matches($content, '/WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_thread-vc143-mt-s-x64-1_84\.lib"')).Count | Should -Be 1
-    ([regex]::Matches($content, '/WHOLEARCHIVE:"\$\(BOOST_ROOT\)\\stage\\lib\\libboost_thread-vc143-mt-s-x32-1_84\.lib"')).Count | Should -Be 1
-    $content | Should -Match 'debug\.lib;%\(AdditionalDependencies\)'
+    $xml = [xml](Get-Content -LiteralPath $projectPath -Raw)
+    $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+    $ns.AddNamespace('msb', 'http://schemas.microsoft.com/developer/msbuild/2003')
+
+    foreach ($case in @(
+      @{ Platform = 'Win32'; Arch = 'x32'; Existing = 'imm32.lib' },
+      @{ Platform = 'x64'; Arch = 'x64'; Existing = 'imm32.lib' }
+    )) {
+      $group = $xml.SelectSingleNode("//msb:ItemDefinitionGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Release|$($case.Platform)`'`"]", $ns)
+      $libraries = @(Get-BoostLinkLibraries $case.Arch)
+      $expectedDependencies = (($libraries + $case.Existing + '%(AdditionalDependencies)') -join ';')
+      $expectedOptions = @(($libraries | ForEach-Object {
+        "/WHOLEARCHIVE:`"`$(BOOST_ROOT)\stage\lib\$_`""
+      }) -join ' ')
+
+      if ($case.Platform -eq 'x64') {
+        $expectedOptions = "/DEBUG $expectedOptions"
+      }
+      $expectedOptions = "$expectedOptions %(AdditionalOptions)"
+
+      $group.Link.AdditionalDependencies | Should -Be $expectedDependencies
+      $group.Link.AdditionalOptions | Should -Be $expectedOptions
+      (@($group.Link.AdditionalDependencies -split ';' | Where-Object { $_ -eq "libboost_thread-vc143-mt-s-$($case.Arch)-1_84.lib" })).Count | Should -Be 1
+      (@($group.Link.AdditionalOptions -split '\s+' | Where-Object { $_ -eq "/WHOLEARCHIVE:`"`$(BOOST_ROOT)\stage\lib\libboost_thread-vc143-mt-s-$($case.Arch)-1_84.lib`"" })).Count | Should -Be 1
+    }
+
+    $debugGroup = $xml.SelectSingleNode("//msb:ItemDefinitionGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Debug|Win32`'`"]", $ns)
+    $debugGroup.Link.AdditionalDependencies | Should -Be 'debug.lib;%(AdditionalDependencies)'
   }
 }
 

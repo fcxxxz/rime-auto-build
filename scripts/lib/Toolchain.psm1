@@ -160,27 +160,26 @@ function Select-ClPath {
     return $null
 }
 
-function Remove-BoostLibrariesFromDependencies {
+function Add-BoostLibrariesToDependencies {
     param(
         [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalDependencies,
         [Parameter(Mandatory)][string[]]$Libraries
     )
 
-    $boostLibraries = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
-    foreach ($lib in $Libraries) {
-        [void]$boostLibraries.Add($lib)
-    }
-
     $items = New-Object System.Collections.Generic.List[string]
     $seen = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($lib in $Libraries) {
+        if ($seen.Add($lib)) {
+            $items.Add($lib)
+        }
+    }
+
     foreach ($item in ($AdditionalDependencies -split ';')) {
         if ([string]::IsNullOrWhiteSpace($item)) {
             continue
         }
         $trimmed = $item.Trim()
-        if ($boostLibraries.Contains($trimmed)) {
-            continue
-        }
         if ($seen.Add($trimmed)) {
             $items.Add($trimmed)
         }
@@ -282,14 +281,17 @@ function Add-BoostLinkLibrariesToProject {
         }
 
         $additional = $link.SelectSingleNode('msb:AdditionalDependencies', $ns)
-        if ($additional) {
-            $updated = Remove-BoostLibrariesFromDependencies `
-                -AdditionalDependencies $additional.InnerText `
-                -Libraries $boostLibraries
-            if ($additional.InnerText -ne $updated) {
-                $additional.InnerText = $updated
-                $changed = $true
-            }
+        if (-not $additional) {
+            $additional = $xml.CreateElement('AdditionalDependencies', $xml.DocumentElement.NamespaceURI)
+            [void]$link.AppendChild($additional)
+        }
+
+        $updated = Add-BoostLibrariesToDependencies `
+            -AdditionalDependencies $additional.InnerText `
+            -Libraries $boostLibraries
+        if ($additional.InnerText -ne $updated) {
+            $additional.InnerText = $updated
+            $changed = $true
         }
     }
 
