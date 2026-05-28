@@ -46,7 +46,9 @@ Describe 'build workflow Boost cache' {
     $content = Get-Content -LiteralPath $PrepareBoostPath -Raw
 
     $content | Should -Match 'Get-MissingBoostLibraries'
-    $content | Should -Match 'build\.bat boost'
+    $content | Should -Match 'Get-BoostBuildArchitectures'
+    $content | Should -Match 'Get-BoostBjamOptions'
+    $content | Should -Not -Match 'build\.bat boost'
     $content | Should -Match 'bin\.v2'
   }
 
@@ -60,7 +62,7 @@ Describe 'build workflow Boost cache' {
   It 'uses a new prepared Boost cache generation after toolchain alignment changes' {
     $content = Get-Content -LiteralPath $WorkflowPath -Raw
 
-    $content | Should -Match 'static-v2'
+    $content | Should -Match 'static-v3'
   }
 }
 
@@ -73,9 +75,11 @@ Describe 'build workflow Windows toolchain' {
 }
 
 Describe 'pack script Boost preparation' {
-  It 'keeps the Boost preparation developer prompt on x86 so build.bat boost can produce both Win32 and x64 libraries' {
+  It 'builds Boost libraries with target-matching Visual Studio prompts' {
     $content = Get-Content -LiteralPath $PackPath -Raw
 
-    $content | Should -Match '(?s)\$boostVsDevCmdCall\s*=\s*New-VsDevCmdCall.*?-Architecture x86\s*`.*?-HostArchitecture x86'
+    $content | Should -Match 'Get-BoostBuildArchitectures'
+    $content | Should -Match 'Get-BoostBjamOptions'
+    $content | Should -Not -Match '(?s)\$boostVsDevCmdCall\s*=\s*New-VsDevCmdCall.*?-Architecture x86\s*`.*?-HostArchitecture x86'
   }
 }

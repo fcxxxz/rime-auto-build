@@ -81,31 +81,51 @@ Write-Host "  SDK       : $SdkVer"
 Write-Host "  Toolset   : $PlatformToolset ($BjamToolset)"
 Write-WeaselEnvBat $WeaselRepo
 
-$boostVsDevCmdCall = New-VsDevCmdCall `
+$boostArchitectures = @(Get-BoostBuildArchitectures)
+$bootstrapArch = $boostArchitectures[0]
+$boostBootstrapVsDevCmdCall = New-VsDevCmdCall `
     -VsDevCmd $VsDevCmd `
     -MsvcToolsVersion $MsvcToolsVersion `
-    -Architecture x86 `
-    -HostArchitecture x86
+    -Architecture $bootstrapArch.VsArchitecture `
+    -HostArchitecture $bootstrapArch.HostArchitecture
 
-$boostBootstrapCmd = "$boostVsDevCmdCall && cd /d `"$BoostRoot`" && call bootstrap.bat vc143"
+$boostBootstrapCmd = "$boostBootstrapVsDevCmdCall && cd /d `"$BoostRoot`" && call bootstrap.bat vc143"
 & cmd.exe /d /s /c $boostBootstrapCmd
 if ($LASTEXITCODE -ne 0) {
     throw "Boost bootstrap failed with exit code $LASTEXITCODE"
 }
 
-$selectedCl = & cmd.exe /d /s /c "$boostVsDevCmdCall && where cl"
-$selectedClPath = Select-ClPath $selectedCl
-if ($LASTEXITCODE -ne 0 -or -not $selectedClPath) {
-    throw 'VsDevCmd did not expose cl.exe for Boost.Build configuration.'
-}
-$boostProjectConfig = New-BoostProjectConfig $selectedClPath
-Set-Content -LiteralPath (Join-Path $BoostRoot 'project-config.jam') -Value $boostProjectConfig -Encoding ASCII
-Write-Host "  Boost.Build: $boostProjectConfig"
+foreach ($boostArch in $boostArchitectures) {
+    $archMissing = @(Get-BoostLinkLibraries $boostArch.Architecture | Where-Object {
+        -not (Test-Path -LiteralPath (Join-Path $BoostRoot "stage\lib\$_"))
+    })
+    if ($archMissing.Count -eq 0) {
+        Write-Host "  Boost $($boostArch.Architecture): already prepared."
+        continue
+    }
 
-$cmd = "$boostVsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$WeaselRepo`" && call build.bat boost"
-& cmd.exe /d /s /c $cmd
-if ($LASTEXITCODE -ne 0) {
-    throw "build.bat boost failed with exit code $LASTEXITCODE"
+    $boostVsDevCmdCall = New-VsDevCmdCall `
+        -VsDevCmd $VsDevCmd `
+        -MsvcToolsVersion $MsvcToolsVersion `
+        -Architecture $boostArch.VsArchitecture `
+        -HostArchitecture $boostArch.HostArchitecture
+
+    $selectedCl = & cmd.exe /d /s /c "$boostVsDevCmdCall && where cl"
+    $selectedClPath = Select-ClPath $selectedCl
+    if ($LASTEXITCODE -ne 0 -or -not $selectedClPath) {
+        throw "VsDevCmd did not expose cl.exe for Boost.Build $($boostArch.Architecture) configuration."
+    }
+
+    $boostProjectConfig = New-BoostProjectConfig $selectedClPath
+    Set-Content -LiteralPath (Join-Path $BoostRoot 'project-config.jam') -Value $boostProjectConfig -Encoding ASCII
+    Write-Host "  Boost.Build $($boostArch.Architecture): $boostProjectConfig"
+
+    $bjamOptions = (Get-BoostBjamOptions -Architecture $boostArch.Architecture -BjamToolset $BjamToolset) -join ' '
+    $cmd = "$boostVsDevCmdCall && set `"SDKVER=$SdkVer`" && set `"BOOST_ROOT=$BoostRoot`" && set `"PLATFORM_TOOLSET=$PlatformToolset`" && set `"BJAM_TOOLSET=$BjamToolset`" && cd /d `"$BoostRoot`" && b2.exe $bjamOptions stage"
+    & cmd.exe /d /s /c $cmd
+    if ($LASTEXITCODE -ne 0) {
+        throw "Boost $($boostArch.Architecture) build failed with exit code $LASTEXITCODE"
+    }
 }
 
 $missingBoost = @(Get-MissingBoostLibraries $BoostRoot)

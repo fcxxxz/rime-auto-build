@@ -105,6 +105,29 @@ Describe 'Get-BoostLinkLibraries' {
   }
 }
 
+Describe 'Get-BoostBuildArchitectures' {
+  It 'uses a target-matching Visual Studio prompt for each Boost library architecture' {
+    $cases = @(Get-BoostBuildArchitectures)
+
+    $cases.Count | Should -Be 2
+    $cases[0].Architecture | Should -Be 'x32'
+    $cases[0].VsArchitecture | Should -Be 'x86'
+    $cases[0].HostArchitecture | Should -Be 'x86'
+    $cases[0].AddressModel | Should -Be '32'
+    $cases[1].Architecture | Should -Be 'x64'
+    $cases[1].VsArchitecture | Should -Be 'amd64'
+    $cases[1].HostArchitecture | Should -Be 'amd64'
+    $cases[1].AddressModel | Should -Be '64'
+  }
+}
+
+Describe 'Get-BoostBjamOptions' {
+  It 'uses Boost.Build address-model options that match the requested library architecture' {
+    Get-BoostBjamOptions -Architecture x32 -BjamToolset msvc-14.3 | Should -Contain 'address-model=32'
+    Get-BoostBjamOptions -Architecture x64 -BjamToolset msvc-14.3 | Should -Contain 'address-model=64'
+  }
+}
+
 Describe 'Add-BoostLinkLibrariesToProject' {
   It 'adds Boost libraries as tail link inputs after project libraries' {
     $projectPath = Join-Path $TestDrive 'WeaselServer.vcxproj'

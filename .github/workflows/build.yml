@@ -118,7 +118,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: boost_1_84_0
-          key: boost-1.84.0-${{ runner.os }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-static-v2
+          key: boost-1.84.0-${{ runner.os }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-static-v3
           restore-keys: |
             boost-1.84.0-source-only-v1
 

@@ -88,6 +88,83 @@ function Get-BoostLinkLibraries {
     )
 }
 
+function Get-BoostBuildArchitectures {
+    return @(
+        [pscustomobject]@{
+            Architecture = 'x32'
+            VsArchitecture = 'x86'
+            HostArchitecture = 'x86'
+            BjamArchitecture = 'x86'
+            AddressModel = '32'
+        }
+        [pscustomobject]@{
+            Architecture = 'x64'
+            VsArchitecture = 'amd64'
+            HostArchitecture = 'amd64'
+            BjamArchitecture = 'x86'
+            AddressModel = '64'
+        }
+    )
+}
+
+function Get-BoostBuildArchitecture {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture
+    )
+
+    foreach ($case in Get-BoostBuildArchitectures) {
+        if ($case.Architecture -eq $Architecture) {
+            return $case
+        }
+    }
+    throw "Unsupported Boost architecture '$Architecture'."
+}
+
+function Get-BoostBjamOptions {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture,
+
+        [Parameter(Mandatory)]
+        [string]$BjamToolset,
+
+        [int]$JobCount = 0
+    )
+
+    if ($JobCount -le 0) {
+        $processorCount = [Environment]::GetEnvironmentVariable('NUMBER_OF_PROCESSORS')
+        if ([string]::IsNullOrWhiteSpace($processorCount)) {
+            $processorCount = [Environment]::ProcessorCount
+        }
+        $JobCount = [Math]::Max(1, [int]$processorCount)
+    }
+
+    $case = Get-BoostBuildArchitecture $Architecture
+    return @(
+        "-j$JobCount",
+        'variant=release',
+        'threading=multi',
+        '--with-filesystem',
+        '--with-json',
+        '--with-locale',
+        '--with-regex',
+        '--with-serialization',
+        '--with-system',
+        '--with-thread',
+        '--with-chrono',
+        '--with-atomic',
+        'define=BOOST_USE_WINAPI_VERSION=0x0603',
+        "toolset=$BjamToolset",
+        'link=static',
+        'runtime-link=static',
+        "architecture=$($case.BjamArchitecture)",
+        "address-model=$($case.AddressModel)"
+    )
+}
+
 function Get-BoostDefaultLibraryOptions {
     param(
         [Parameter(Mandatory)]
@@ -348,4 +425,4 @@ function Add-BoostLinkLibrariesToProject {
     return $changed
 }
 
-Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-BoostLinkLibraries, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig, Select-ClPath, Add-BoostLinkLibrariesToProject
+Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-BoostLinkLibraries, Get-BoostBuildArchitectures, Get-BoostBjamOptions, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig, Select-ClPath, Add-BoostLinkLibrariesToProject
