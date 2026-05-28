@@ -3,6 +3,7 @@
 $ScriptDir = Split-Path -Parent $PSCommandPath
 Import-Module (Join-Path $ScriptDir 'scripts\lib\Toolchain.psm1') -Force
 Import-Module (Join-Path $ScriptDir 'scripts\lib\CustomData.psm1') -Force
+Import-Module (Join-Path $ScriptDir 'scripts\lib\LibrimeValidation.psm1') -Force
 Import-Module (Join-Path $ScriptDir 'scripts\lib\NsiPatch.psm1') -Force
 
 # ---------------------------------------------------------------------------
@@ -877,6 +878,7 @@ Require-Path $librimeMarker 'librime\data\minimal\default.yaml (in isolated work
 
 $missingLibrime = Get-MissingLibrimeFiles $WeaselRepo
 if ($missingLibrime.Count -gt 0) {
+  Install-PackLibrimeLuaPlugin -WeaselRoot $WeaselRepo -CustomDataDir $CustomDataDir -LibrimeLuaRef $env:PACK_LIBRIME_LUA_REF -LibrimeLuaThirdpartyRef $env:PACK_LIBRIME_LUA_THIRDPARTY_REF -Force
   $localLibrimeBuild = Join-Path $WeaselRepo 'librime\build.bat'
   if (Test-Path -LiteralPath $localLibrimeBuild) {
     try {
@@ -920,6 +922,7 @@ Missing:
   Write-Host ''
 }
 
+Assert-PackLibrimeLuaSupport -WeaselRoot $WeaselRepo -CustomDataDir $CustomDataDir -Force
 
 
 # Weasel's build.bat depends on bare-name calls like `call env.bat` / `call build.bat deps`,

@@ -102,6 +102,29 @@ jobs:
           }
           "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
 
+      - name: Resolve librime-lua revision
+        id: librime-lua-rev
+        shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          $luaRemote = git ls-remote https://github.com/hchunhui/librime-lua.git refs/heads/master
+          if ($LASTEXITCODE -ne 0 -or -not $luaRemote) {
+            throw "failed to resolve hchunhui/librime-lua master"
+          }
+          $thirdpartyRemote = git ls-remote https://github.com/hchunhui/librime-lua.git refs/heads/thirdparty
+          if ($LASTEXITCODE -ne 0 -or -not $thirdpartyRemote) {
+            throw "failed to resolve hchunhui/librime-lua thirdparty"
+          }
+          $luaSha = ($luaRemote -split "\s+")[0]
+          $thirdpartySha = ($thirdpartyRemote -split "\s+")[0]
+          Write-Host "librime-lua HEAD: $luaSha"
+          Write-Host "librime-lua thirdparty HEAD: $thirdpartySha"
+          "lua_sha=$luaSha" | Add-Content -Path $env:GITHUB_OUTPUT
+          "thirdparty_sha=$thirdpartySha" | Add-Content -Path $env:GITHUB_OUTPUT
+          "PACK_LIBRIME_LUA_REF=$luaSha" | Add-Content -Path $env:GITHUB_ENV
+          "PACK_LIBRIME_LUA_THIRDPARTY_REF=$thirdpartySha" | Add-Content -Path $env:GITHUB_ENV
+
       - name: Install Visual Studio ATL component
         id: msvc
         shell: pwsh
@@ -213,7 +236,7 @@ jobs:
             weasel/output/data/opencc/t2s.json
             weasel/output/data/opencc/t2tw.json
             weasel/output/data/opencc/tw2s.json
-          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-v1
+          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v3
 
       - name: Run pack.ps1
         shell: pwsh

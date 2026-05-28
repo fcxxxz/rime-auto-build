@@ -99,13 +99,16 @@ Describe 'build workflow librime cache' {
     $content = Get-Content -LiteralPath $WorkflowPath -Raw
 
     $content | Should -Match 'id:\s*librime-rev'
+    $content | Should -Match 'id:\s*librime-lua-rev'
+    $content | Should -Match 'git ls-remote https://github\.com/hchunhui/librime-lua\.git refs/heads/master'
+    $content | Should -Match 'git ls-remote https://github\.com/hchunhui/librime-lua\.git refs/heads/thirdparty'
     $content | Should -Match 'Test-Path -LiteralPath weasel/librime'
     $content | Should -Match 'git -C weasel/librime rev-parse HEAD'
     $content | Should -Match 'git ls-remote https://github\.com/rime/librime\.git refs/heads/master'
     $content | Should -Match 'git clone --depth 1 -b master https://github\.com/rime/librime\.git librime'
     $content | Should -Match 'librime HEAD \(external fallback\)'
     $content | Should -Match 'sdk_version='
-    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-v1'
+    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v3'
     $content | Should -Not -Match '(?m)^\s+weasel/output/data/opencc\s*$'
   }
 
@@ -116,6 +119,28 @@ Describe 'build workflow librime cache' {
     $content | Should -Match 'Copy-LibrimeCacheOutputs'
     $content | Should -Match '\.pack-work\\weasel'
     $content | Should -Match '\.\\weasel'
+  }
+
+  It 'validates cached or built rime.dll files when custom-data needs lua' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match 'LibrimeValidation\.psm1'
+    $content | Should -Match 'Assert-PackLibrimeLuaSupport'
+    $content.IndexOf('Assert-PackLibrimeLuaSupport', [StringComparison]::Ordinal) |
+      Should -BeGreaterThan $content.IndexOf('librime preparation incomplete', [StringComparison]::Ordinal)
+  }
+
+  It 'installs librime-lua before building librime when custom-data needs lua' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match 'Install-PackLibrimeLuaPlugin .* -Force'
+    $content | Should -Match 'Install-PackLibrimeLuaPlugin .* -LibrimeLuaRef \$env:PACK_LIBRIME_LUA_REF'
+    $content | Should -Match 'Install-PackLibrimeLuaPlugin .* -LibrimeLuaThirdpartyRef \$env:PACK_LIBRIME_LUA_THIRDPARTY_REF'
+    $content | Should -Match 'Assert-PackLibrimeLuaSupport .* -Force'
+    $content.IndexOf('Install-PackLibrimeLuaPlugin', [StringComparison]::Ordinal) |
+      Should -BeGreaterThan $content.IndexOf('$missingLibrime = Get-MissingLibrimeFiles $WeaselRepo', [StringComparison]::Ordinal)
+    $content.IndexOf('Install-PackLibrimeLuaPlugin', [StringComparison]::Ordinal) |
+      Should -BeLessThan $content.IndexOf('call build.bat librime', [StringComparison]::Ordinal)
   }
 }
 
