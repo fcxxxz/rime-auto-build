@@ -35,4 +35,11 @@ Describe 'build workflow Boost cache' {
     $content | Should -Match 'build\.bat boost'
     $content | Should -Match 'bin\.v2'
   }
+
+  It 'keeps missing-library checks as arrays when no library is missing' {
+    $content = Get-Content -LiteralPath $PrepareBoostPath -Raw
+
+    ([regex]::Matches($content, '\$missingBoost\s*=\s*@\(Get-MissingBoostLibraries \$BoostRoot\)')).Count |
+      Should -Be 2
+  }
 }

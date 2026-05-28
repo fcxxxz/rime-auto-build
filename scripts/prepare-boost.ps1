@@ -59,7 +59,7 @@ Require-Path $BoostRoot 'Boost root'
 Require-Path (Join-Path $BoostRoot 'boost') 'Boost headers'
 Require-Path (Join-Path $WeaselRepo 'build.bat') 'weasel\build.bat'
 
-$missingBoost = Get-MissingBoostLibraries $BoostRoot
+$missingBoost = @(Get-MissingBoostLibraries $BoostRoot)
 if ($missingBoost.Count -eq 0) {
     Write-Host 'Boost static libraries already prepared.'
     exit 0
@@ -108,7 +108,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "build.bat boost failed with exit code $LASTEXITCODE"
 }
 
-$missingBoost = Get-MissingBoostLibraries $BoostRoot
+$missingBoost = @(Get-MissingBoostLibraries $BoostRoot)
 if ($missingBoost.Count -gt 0) {
     throw "Boost static library preparation incomplete. Missing: $($missingBoost -join ', ')"
 }
