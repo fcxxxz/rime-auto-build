@@ -1,0 +1,61 @@
+name: Package Rime Data
+description: 一次性打包一个公开 GitHub Rime 方案仓库
+title: "Package: "
+labels:
+  - package request
+body:
+  - type: input
+    id: data_name
+    attributes:
+      label: Data short name
+      description: 只用小写字母、数字和短横线，2-32 个字符，会进入安装包文件名。
+      placeholder: sample-data
+    validations:
+      required: true
+
+  - type: input
+    id: data_display
+    attributes:
+      label: Display name
+      description: 显示在构建说明里的方案名。
+      placeholder: 示例方案
+    validations:
+      required: true
+
+  - type: input
+    id: repository
+    attributes:
+      label: Repository
+      description: 只支持公开 GitHub HTTPS 仓库。
+      placeholder: https://github.com/user/rime-data
+    validations:
+      required: true
+
+  - type: input
+    id: ref
+    attributes:
+      label: Ref
+      description: 分支、tag 或完整 40 位 commit SHA；留空时使用 main。
+      placeholder: main
+    validations:
+      required: false
+
+  - type: dropdown
+    id: weasel
+    attributes:
+      label: Weasel
+      description: 一次请求只能选择一个小狼毫版本。
+      options:
+        - rime
+        - qing
+        - fxliang
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I confirm this is a public Rime data repository and understand the installer is uploaded as a temporary GitHub Actions artifact.
+          required: true

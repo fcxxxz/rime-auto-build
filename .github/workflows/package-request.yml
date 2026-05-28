@@ -1,0 +1,435 @@
+name: Package Request
+
+on:
+  issues:
+    types:
+      - opened
+
+permissions:
+  contents: read
+  issues: write
+  actions: write
+
+concurrency:
+  group: package-request-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: contains(github.event.issue.labels.*.name, 'package request')
+    runs-on: ubuntu-latest
+    outputs:
+      valid: ${{ steps.prepare.outputs.valid }}
+      error: ${{ steps.prepare.outputs.error }}
+      data_name: ${{ steps.prepare.outputs.data_name }}
+      data_display: ${{ steps.prepare.outputs.data_display }}
+      data_url: ${{ steps.prepare.outputs.data_url }}
+      data_ref: ${{ steps.prepare.outputs.data_ref }}
+      github_owner: ${{ steps.prepare.outputs.github_owner }}
+      github_repo: ${{ steps.prepare.outputs.github_repo }}
+      weasel_name: ${{ steps.prepare.outputs.weasel_name }}
+      weasel_display: ${{ steps.prepare.outputs.weasel_display }}
+      weasel_url: ${{ steps.prepare.outputs.weasel_url }}
+      weasel_ref: ${{ steps.prepare.outputs.weasel_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Write issue body
+        shell: pwsh
+        run: |
+          $event = Get-Content -LiteralPath $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+          [System.IO.File]::WriteAllText('issue-body.md', [string]$event.issue.body, [System.Text.UTF8Encoding]::new($false))
+
+      - name: Prepare package request
+        id: prepare
+        shell: pwsh
+        run: ./scripts/prepare-package-request.ps1 -IssueBodyPath issue-body.md
+
+      - name: Check GitHub repository visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo_json=$(gh api repos/${{ steps.prepare.outputs.github_owner }}/${{ steps.prepare.outputs.github_repo }})
+          private=$(echo "$repo_json" | jq -r '.private')
+          archived=$(echo "$repo_json" | jq -r '.archived')
+          if [ "$private" != "false" ] || [ "$archived" != "false" ]; then
+            echo "Repository must be public and not archived."
+            exit 1
+          fi
+
+      - name: Check requested ref and Rime data shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init request-data-check
+          git -C request-data-check remote add origin "${{ steps.prepare.outputs.data_url }}"
+          git -C request-data-check fetch --depth 1 origin -- "${{ steps.prepare.outputs.data_ref }}"
+          git -C request-data-check checkout --detach FETCH_HEAD
+          pwsh ./scripts/check-rime-data-shape.ps1 -Path request-data-check
+
+      - name: Comment validation success
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > comment.md <<'EOF'
+          校验通过，开始打包：`${{ steps.prepare.outputs.data_name }}` x `${{ steps.prepare.outputs.weasel_name }}`。
+
+          详情见 https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
+
+      - name: Comment validation failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > comment.md <<'EOF'
+          打包失败：请求校验没有通过。
+
+          详情见 https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
+          gh label create "package failure" --color D93F0B --description "One-off package request failed" || true
+          gh issue edit ${{ github.event.issue.number }} --add-label "package failure"
+          gh issue close ${{ github.event.issue.number }} --reason "not planned"
+
+  build:
+    needs: validate
+    if: ${{ needs.validate.outputs.valid == 'true' }}
+    runs-on: windows-2022
+    env:
+      DATA_NAME: ${{ needs.validate.outputs.data_name }}
+      DATA_DISPLAY: ${{ needs.validate.outputs.data_display }}
+      DATA_URL: ${{ needs.validate.outputs.data_url }}
+      DATA_REF: ${{ needs.validate.outputs.data_ref }}
+      WEASEL_NAME: ${{ needs.validate.outputs.weasel_name }}
+      WEASEL_DISPLAY: ${{ needs.validate.outputs.weasel_display }}
+      WEASEL_URL: ${{ needs.validate.outputs.weasel_url }}
+      WEASEL_REF: ${{ needs.validate.outputs.weasel_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Clone weasel (recursive)
+        id: weasel-rev
+        shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          git clone --recursive --depth 1 -b $env:WEASEL_REF $env:WEASEL_URL weasel
+          $sha = git -C weasel rev-parse HEAD
+          $commitTime = git -C weasel show -s --format=%cI HEAD
+          Write-Host "weasel HEAD: $sha"
+          Write-Host "weasel commit time: $commitTime"
+          "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
+          "weasel_commit_time=$commitTime" | Add-Content -Path $env:GITHUB_OUTPUT
+
+      - name: Clone data -> custom-data
+        id: data-rev
+        shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          git -c core.symlinks=true clone --no-checkout --filter=blob:none $env:DATA_URL custom-data
+          git -C custom-data fetch --depth 1 origin -- $env:DATA_REF
+          git -C custom-data checkout --detach FETCH_HEAD
+          $sha = git -C custom-data rev-parse HEAD
+          $commitTime = git -C custom-data show -s --format=%cI HEAD
+          Write-Host "data HEAD: $sha"
+          Write-Host "data commit time: $commitTime"
+          "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
+          "data_commit_time=$commitTime" | Add-Content -Path $env:GITHUB_OUTPUT
+
+      - name: Check Rime data shape
+        shell: pwsh
+        run: ./scripts/check-rime-data-shape.ps1 -Path custom-data
+
+      - name: Resolve librime revision
+        id: librime-rev
+        shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          if (Test-Path -LiteralPath weasel/librime) {
+            $sha = git -C weasel/librime rev-parse HEAD
+            Write-Host "librime HEAD: $sha"
+          } else {
+            $remote = git ls-remote https://github.com/rime/librime.git refs/heads/master
+            if ($LASTEXITCODE -ne 0 -or -not $remote) {
+              throw "failed to resolve external librime master"
+            }
+            $sha = ($remote -split "\s+")[0]
+            Write-Host "librime HEAD (external fallback): $sha"
+            git clone --depth 1 -b master https://github.com/rime/librime.git librime
+          }
+          "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
+
+      - name: Resolve librime-lua revision
+        id: librime-lua-rev
+        shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          $luaRemote = git ls-remote https://github.com/hchunhui/librime-lua.git refs/heads/master
+          if ($LASTEXITCODE -ne 0 -or -not $luaRemote) {
+            throw "failed to resolve hchunhui/librime-lua master"
+          }
+          $thirdpartyRemote = git ls-remote https://github.com/hchunhui/librime-lua.git refs/heads/thirdparty
+          if ($LASTEXITCODE -ne 0 -or -not $thirdpartyRemote) {
+            throw "failed to resolve hchunhui/librime-lua thirdparty"
+          }
+          $luaSha = ($luaRemote -split "\s+")[0]
+          $thirdpartySha = ($thirdpartyRemote -split "\s+")[0]
+          Write-Host "librime-lua HEAD: $luaSha"
+          Write-Host "librime-lua thirdparty HEAD: $thirdpartySha"
+          "lua_sha=$luaSha" | Add-Content -Path $env:GITHUB_OUTPUT
+          "thirdparty_sha=$thirdpartySha" | Add-Content -Path $env:GITHUB_OUTPUT
+          "PACK_LIBRIME_LUA_REF=$luaSha" | Add-Content -Path $env:GITHUB_ENV
+          "PACK_LIBRIME_LUA_THIRDPARTY_REF=$thirdpartySha" | Add-Content -Path $env:GITHUB_ENV
+
+      - name: Install Visual Studio ATL component
+        id: msvc
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -property installationPath
+          $vsVersion = & $vswhere -latest -property installationVersion
+          Write-Host "VS installPath: $vsPath"
+          Write-Host "VS installVersion: $vsVersion"
+
+          function Find-AtlBase {
+            Get-ChildItem -Path (Join-Path $vsPath 'VC\Tools\MSVC') -Recurse -Filter 'atlbase.h' -ErrorAction SilentlyContinue |
+              Sort-Object {
+                if ($_.FullName -match '\\MSVC\\([0-9.]+)\\atlmfc\\') { [Version]$Matches[1] } else { [Version]'0.0' }
+              } -Descending |
+              Select-Object -First 5
+          }
+
+          $atlbase = Find-AtlBase
+          if (-not $atlbase) {
+            Write-Host "atlbase.h NOT FOUND. Installing via setup.exe..."
+            $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+            $argLine = 'modify --installPath "' + $vsPath + '" --quiet --norestart --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATLMFC'
+            $p = Start-Process -FilePath $installer -ArgumentList $argLine -Wait -PassThru -NoNewWindow
+            Write-Host "VS installer exit: $($p.ExitCode)"
+            if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+              throw "VS installer modify failed: $($p.ExitCode)"
+            }
+            $atlbase = Find-AtlBase
+            if (-not $atlbase) { throw "atlbase.h still missing after modify" }
+          }
+
+          Write-Host "atlbase.h found:"
+          $atlbase | ForEach-Object { Write-Host "  $($_.FullName)" }
+
+          $msvcVer = $atlbase[0].FullName -replace '.*\\MSVC\\([0-9.]+)\\atlmfc\\.*','$1'
+          Write-Host "Pinning PACK_MSVC_TOOLS_VERSION=$msvcVer for downstream pack.ps1"
+          "PACK_MSVC_TOOLS_VERSION=$msvcVer" | Add-Content -Path $env:GITHUB_ENV
+          "msvc_tools_version=$msvcVer" | Add-Content -Path $env:GITHUB_OUTPUT
+          $sdk = Get-ChildItem -LiteralPath "${env:ProgramFiles(x86)}\Windows Kits\10\Include" -Directory |
+            Where-Object { $_.Name -match '^10\.\d+\.\d+\.\d+$' } |
+            Sort-Object { [Version]$_.Name } -Descending |
+            Select-Object -First 1 -ExpandProperty Name
+          Write-Host "Windows SDK version: $sdk"
+          "sdk_version=$sdk" | Add-Content -Path $env:GITHUB_OUTPUT
+
+      - name: Restore Boost cache
+        id: boost-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: boost_1_84_0
+          key: boost-1.84.0-${{ runner.os }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-static-v3
+          restore-keys: |
+            boost-1.84.0-source-only-v1
+
+      - name: Download Boost (cache miss)
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/fetch-boost.ps1
+
+      - name: Prepare Boost static libraries
+        shell: pwsh
+        run: ./scripts/prepare-boost.ps1
+
+      - name: Save Boost cache
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: boost_1_84_0
+          key: ${{ steps.boost-cache.outputs.cache-primary-key }}
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y --no-progress
+
+      - name: Restore librime cache
+        id: librime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            weasel/include/rime_api.h
+            weasel/include/rime_api_deprecated.h
+            weasel/include/rime_api_stdbool.h
+            weasel/include/rime_levers_api.h
+            weasel/lib64/rime.lib
+            weasel/lib/rime.lib
+            weasel/output/rime.dll
+            weasel/output/rime.pdb
+            weasel/output/Win32/rime.dll
+            weasel/output/Win32/rime.pdb
+            weasel/output/data/opencc/HKVariants.ocd2
+            weasel/output/data/opencc/HKVariantsPhrases.ocd2
+            weasel/output/data/opencc/HKVariantsRev.ocd2
+            weasel/output/data/opencc/JPShinjitaiCharacters.ocd2
+            weasel/output/data/opencc/JPShinjitaiPhrases.ocd2
+            weasel/output/data/opencc/JPVariants.ocd2
+            weasel/output/data/opencc/JPVariantsRev.ocd2
+            weasel/output/data/opencc/STCharacters.ocd2
+            weasel/output/data/opencc/STPhrases.ocd2
+            weasel/output/data/opencc/TSCharacters.ocd2
+            weasel/output/data/opencc/TSPhrases.ocd2
+            weasel/output/data/opencc/TWVariants.ocd2
+            weasel/output/data/opencc/TWVariantsPhrases.ocd2
+            weasel/output/data/opencc/TWVariantsRev.ocd2
+            weasel/output/data/opencc/t2hk.json
+            weasel/output/data/opencc/t2jp.json
+            weasel/output/data/opencc/t2s.json
+            weasel/output/data/opencc/t2tw.json
+            weasel/output/data/opencc/tw2s.json
+          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v3
+
+      - name: Run pack.ps1
+        shell: pwsh
+        run: ./pack.ps1
+
+      - name: Sync librime outputs for cache
+        if: steps.librime-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/save-librime-cache.ps1
+
+      - name: Save librime cache
+        if: steps.librime-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            weasel/include/rime_api.h
+            weasel/include/rime_api_deprecated.h
+            weasel/include/rime_api_stdbool.h
+            weasel/include/rime_levers_api.h
+            weasel/lib64/rime.lib
+            weasel/lib/rime.lib
+            weasel/output/rime.dll
+            weasel/output/rime.pdb
+            weasel/output/Win32/rime.dll
+            weasel/output/Win32/rime.pdb
+            weasel/output/data/opencc/HKVariants.ocd2
+            weasel/output/data/opencc/HKVariantsPhrases.ocd2
+            weasel/output/data/opencc/HKVariantsRev.ocd2
+            weasel/output/data/opencc/JPShinjitaiCharacters.ocd2
+            weasel/output/data/opencc/JPShinjitaiPhrases.ocd2
+            weasel/output/data/opencc/JPVariants.ocd2
+            weasel/output/data/opencc/JPVariantsRev.ocd2
+            weasel/output/data/opencc/STCharacters.ocd2
+            weasel/output/data/opencc/STPhrases.ocd2
+            weasel/output/data/opencc/TSCharacters.ocd2
+            weasel/output/data/opencc/TSPhrases.ocd2
+            weasel/output/data/opencc/TWVariants.ocd2
+            weasel/output/data/opencc/TWVariantsPhrases.ocd2
+            weasel/output/data/opencc/TWVariantsRev.ocd2
+            weasel/output/data/opencc/t2hk.json
+            weasel/output/data/opencc/t2jp.json
+            weasel/output/data/opencc/t2s.json
+            weasel/output/data/opencc/t2tw.json
+            weasel/output/data/opencc/tw2s.json
+          key: ${{ steps.librime-cache.outputs.cache-primary-key }}
+
+      - name: Rename installer
+        id: rename
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem weasel-*-installer.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $f) { throw "no installer produced" }
+          $newName = $f.Name -replace '^weasel-', "weasel-$env:DATA_NAME-$env:WEASEL_NAME-"
+          Rename-Item $f.FullName $newName
+          "name=$newName" | Add-Content -Path $env:GITHUB_OUTPUT
+          Get-ChildItem $newName | Select-Object Name,Length
+
+      - name: Write installer manifest
+        shell: pwsh
+        run: |
+          ./scripts/write-installer-manifest.ps1 `
+            -InstallerName '${{ steps.rename.outputs.name }}' `
+            -DataName "$env:DATA_NAME" `
+            -DataDisplay "$env:DATA_DISPLAY" `
+            -DataUrl "$env:DATA_URL" `
+            -DataRef "$env:DATA_REF" `
+            -DataSha '${{ steps.data-rev.outputs.sha }}' `
+            -DataCommitTime '${{ steps.data-rev.outputs.data_commit_time }}' `
+            -WeaselName "$env:WEASEL_NAME" `
+            -WeaselDisplay "$env:WEASEL_DISPLAY" `
+            -WeaselUrl "$env:WEASEL_URL" `
+            -WeaselRef "$env:WEASEL_REF" `
+            -WeaselSha '${{ steps.weasel-rev.outputs.sha }}' `
+            -WeaselCommitTime '${{ steps.weasel-rev.outputs.weasel_commit_time }}' `
+            -OutputPath "manifest-$env:DATA_NAME-$env:WEASEL_NAME.json"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-request-${{ github.event.issue.number }}
+          path: |
+            ${{ steps.rename.outputs.name }}
+            manifest-${{ needs.validate.outputs.data_name }}-${{ needs.validate.outputs.weasel_name }}.json
+          if-no-files-found: error
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-package-request-${{ github.event.issue.number }}
+          path: |
+            pack.log
+            .pack-work/**/*.log
+          if-no-files-found: ignore
+
+      - name: Comment build failure
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > comment.md <<'EOF'
+          打包失败。请查看日志：
+
+          https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
+          gh label create "package failure" --color D93F0B --description "One-off package request failed" || true
+          gh issue edit ${{ github.event.issue.number }} --add-label "package failure"
+
+  report:
+    needs: [validate, build]
+    if: ${{ always() && needs.validate.outputs.valid == 'true' && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment success
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > comment.md <<'EOF'
+          打包完成：`${{ needs.validate.outputs.data_name }}` x `${{ needs.validate.outputs.weasel_name }}`。
+
+          请在本次 workflow 的 Artifacts 下载 `package-request-${{ github.event.issue.number }}`：
+          https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Artifacts 有 GitHub 保留期限。
+          EOF
+          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
+          gh label create "package succeeded" --color 0E8A16 --description "One-off package request succeeded" || true
+          gh issue edit ${{ github.event.issue.number }} --add-label "package succeeded"
+          gh issue close ${{ github.event.issue.number }} --reason "completed"

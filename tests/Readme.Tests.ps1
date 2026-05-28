@@ -23,4 +23,17 @@ Describe 'README update workflow explanation' {
     $content | Should -Match '\[rimeinn/rime-moran\]\(https://github\.com/rimeinn/rime-moran\.git\)'
     $content | Should -Not -Match '\| `https://github\.com/'
   }
+
+  It 'documents one-off issue packaging with a direct issue template link' {
+    $content = Get-Content -LiteralPath $ReadmePath -Raw
+
+    $content | Should -Match '## 一次性打包新的方案'
+    $content | Should -Match '\[提交一次性打包 Issue\]\(\./issues/new\?template=package-data\.yml\)'
+    $content | Should -Match '只支持公开 GitHub HTTPS 仓库'
+    $content | Should -Match '一次只能选择一个小狼毫版本'
+    $content | Should -Match 'package-request-\{issue_number\}'
+    $content | Should -Match 'Artifacts'
+    $content | Should -Match '长期加入'
+    $content | Should -Match '人工审核'
+  }
 }
