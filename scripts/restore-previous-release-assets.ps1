@@ -30,6 +30,66 @@ function Invoke-GhJson {
   return $json | ConvertFrom-Json
 }
 
+function Get-GhAuthToken {
+  if (-not [string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
+    return $env:GH_TOKEN
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+    return $env:GITHUB_TOKEN
+  }
+
+  $token = & gh auth token
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+    throw 'failed to resolve GitHub token for release asset downloads'
+  }
+  return ([string]$token).Trim()
+}
+
+function Download-ReleaseAsset {
+  param(
+    [Parameter(Mandatory)]$Asset,
+    [Parameter(Mandatory)][string]$DestinationRoot,
+    [Parameter(Mandatory)][string]$Token
+  )
+
+  if (-not (Test-Path -LiteralPath $DestinationRoot)) {
+    New-Item -ItemType Directory -Path $DestinationRoot -Force | Out-Null
+  }
+
+  $name = [string]$Asset.name
+  $apiUrl = [string]$Asset.apiUrl
+  $expectedSize = [int64]$Asset.size
+  if ([string]::IsNullOrWhiteSpace($name) -or [string]::IsNullOrWhiteSpace($apiUrl)) {
+    throw 'Release asset is missing name or apiUrl.'
+  }
+
+  $destination = Join-Path $DestinationRoot $name
+  if (Test-Path -LiteralPath $destination) {
+    $existingSize = (Get-Item -LiteralPath $destination).Length
+    if ($existingSize -eq $expectedSize) {
+      Write-Host "Already downloaded: $name"
+      return $destination
+    }
+    Remove-Item -LiteralPath $destination -Force
+  }
+
+  $headers = @{
+    Accept = 'application/octet-stream'
+    Authorization = "Bearer $Token"
+    'User-Agent' = 'rime-auto-build'
+    'X-GitHub-Api-Version' = '2022-11-28'
+  }
+
+  Write-Host "Downloading release asset: $name"
+  Invoke-WebRequest -Uri $apiUrl -Headers $headers -OutFile $destination -MaximumRedirection 10
+
+  $actualSize = (Get-Item -LiteralPath $destination).Length
+  if ($actualSize -ne $expectedSize) {
+    throw "Size mismatch for $name`: expected $expectedSize byte(s), got $actualSize byte(s)."
+  }
+  return $destination
+}
+
 if ([string]::IsNullOrWhiteSpace($Repository)) {
   throw 'Repository is required.'
 }
@@ -63,9 +123,12 @@ if (-not $previousRelease) {
 
 $tag = $previousRelease.tagName
 Write-Host "Restoring previous release assets from $tag"
-gh release download $tag --repo $Repository --pattern '*.exe' --dir $PackageRoot --clobber
-if ($LASTEXITCODE -ne 0) {
-  throw "failed to download previous release installers from $tag"
+
+$previousView = Invoke-GhJson -Args @('release', 'view', $tag, '--repo', $Repository, '--json', 'assets,body')
+$token = Get-GhAuthToken
+$installerAssets = @($previousView.assets | Where-Object { $_.name -like '*.exe' })
+foreach ($asset in $installerAssets) {
+  Download-ReleaseAsset -Asset $asset -DestinationRoot $PackageRoot -Token $token | Out-Null
 }
 
 $zipPath = Join-Path $env:RUNNER_TEMP 'release-manifests.zip'
@@ -74,15 +137,15 @@ if (-not $env:RUNNER_TEMP) {
 }
 Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
 
-gh release download $tag --repo $Repository --pattern 'release-manifests.zip' --dir (Split-Path -Parent $zipPath) --clobber 2>$null
-if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $zipPath)) {
+$manifestArchive = @($previousView.assets | Where-Object { $_.name -eq 'release-manifests.zip' } | Select-Object -First 1)
+if ($manifestArchive.Count -gt 0) {
+  $zipPath = Download-ReleaseAsset -Asset $manifestArchive[0] -DestinationRoot (Split-Path -Parent $zipPath) -Token $token
   Expand-Archive -LiteralPath $zipPath -DestinationPath $ManifestRoot -Force
   Write-Host "Restored previous manifests from release-manifests.zip"
   return
 }
 
-$release = Invoke-GhJson -Args @('release', 'view', $tag, '--repo', $Repository, '--json', 'body')
-$manifests = @(ConvertFrom-ReleaseNotes -Markdown ([string]$release.body))
+$manifests = @(ConvertFrom-ReleaseNotes -Markdown ([string]$previousView.body))
 foreach ($manifest in $manifests) {
   $path = Join-Path $ManifestRoot "manifest-$($manifest.data.name)-$($manifest.weasel.name).json"
   [System.IO.File]::WriteAllText($path, ($manifest | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))

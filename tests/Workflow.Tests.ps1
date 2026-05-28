@@ -166,6 +166,15 @@ Describe 'build workflow release notes' {
     $content | Should -Match 'installerCount -ge \$expectedInstallerCount'
   }
 
+  It 'downloads previous release installers one by one and validates file sizes' {
+    $content = Get-Content -LiteralPath $RestorePreviousReleaseAssetsPath -Raw
+
+    $content | Should -Match 'Download-ReleaseAsset'
+    $content | Should -Match 'application/octet-stream'
+    $content | Should -Match 'Size mismatch'
+    $content | Should -Not -Match "gh release download \$tag --repo \$Repository --pattern '\\*\.exe'"
+  }
+
   It 'records display names and commit times in installer manifests' {
     $content = Get-Content -LiteralPath $WorkflowPath -Raw
 
