@@ -8,6 +8,9 @@ weasels:
   - name: mine
     url: https://github.com/a810439322/weasel.git
     ref: master
+  - name: fxliang
+    url: https://github.com/fxliang/weasel.git
+    ref: pb
 
 datas:
   - name: tiger

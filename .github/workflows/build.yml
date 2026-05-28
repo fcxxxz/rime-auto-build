@@ -66,13 +66,15 @@ jobs:
           "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
 
       - name: Clone data -> custom-data
+        id: data-rev
         shell: pwsh
         env:
           GIT_TERMINAL_PROMPT: '0'
         run: |
           git -c core.symlinks=true clone --depth 1 -b ${{ matrix.data_ref }} ${{ matrix.data_url }} custom-data
-          Write-Host "data HEAD:"
-          git -C custom-data rev-parse HEAD
+          $sha = git -C custom-data rev-parse HEAD
+          Write-Host "data HEAD: $sha"
+          "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
 
       - name: Resolve librime revision
         id: librime-rev
@@ -253,11 +255,33 @@ jobs:
           "name=$newName" | Add-Content -Path $env:GITHUB_OUTPUT
           Get-ChildItem $newName | Select-Object Name,Length
 
+      - name: Write installer manifest
+        shell: pwsh
+        run: |
+          ./scripts/write-installer-manifest.ps1 `
+            -InstallerName '${{ steps.rename.outputs.name }}' `
+            -DataName '${{ matrix.data_name }}' `
+            -DataUrl '${{ matrix.data_url }}' `
+            -DataRef '${{ matrix.data_ref }}' `
+            -DataSha '${{ steps.data-rev.outputs.sha }}' `
+            -WeaselName '${{ matrix.weasel_name }}' `
+            -WeaselUrl '${{ matrix.weasel_url }}' `
+            -WeaselRef '${{ matrix.weasel_ref }}' `
+            -WeaselSha '${{ steps.weasel-rev.outputs.sha }}' `
+            -OutputPath 'manifest-${{ matrix.data_name }}-${{ matrix.weasel_name }}.json'
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.data_name }}-${{ matrix.weasel_name }}
           path: ${{ steps.rename.outputs.name }}
+          if-no-files-found: error
+
+      - name: Upload installer manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ matrix.data_name }}-${{ matrix.weasel_name }}
+          path: manifest-${{ matrix.data_name }}-${{ matrix.weasel_name }}.json
           if-no-files-found: error
 
       - name: Upload logs on failure
@@ -285,8 +309,19 @@ jobs:
           pattern: installer-*
           merge-multiple: true
 
+      - name: Download all installer manifests
+        uses: actions/download-artifact@v4
+        with:
+          path: out/manifests
+          pattern: manifest-*
+          merge-multiple: true
+
       - name: List
         run: ls -la out/
+
+      - name: Write release notes
+        shell: pwsh
+        run: ./scripts/write-release-notes.ps1 -ManifestRoot out/manifests -OutputPath out/release-notes.md -EventName '${{ github.event_name }}'
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -294,9 +329,4 @@ jobs:
           tag_name: ${{ needs.plan.outputs.tag }}
           name:     ${{ needs.plan.outputs.tag }}
           files:    out/*.exe
-          body: |
-            自动构建。
-
-            - 触发：`${{ github.event_name }}`
-            - SHA 快照：见 `state/last-seen.json`
-            - 配置：见 `builds.yaml`
+          body_path: out/release-notes.md

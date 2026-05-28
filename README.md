@@ -14,6 +14,27 @@
 
 到 [Releases](../../releases) 下载对应 data + weasel 的 `.exe`。第一次运行 Windows SmartScreen 可能拦截，点 **更多信息 → 仍要运行**。
 
+文件名格式：
+
+`weasel-{方案名}-{小狼毫版本名}-{小狼毫版本号}-installer.exe`
+
+其中：
+
+- `方案名` 来自 `builds.yaml` 的 `datas`，表示打进安装包的 Rime 方案、词库、Lua、OpenCC 等数据。
+- `小狼毫版本名` 来自 `builds.yaml` 的 `weasels`，表示用于编译安装器的小狼毫源码仓库。
+- Release 正文会列出每个 `.exe` 对应的方案仓库、方案提交、小狼毫仓库、小狼毫提交。
+
+当前自动构建的方案仓库：
+
+- `tiger`: `https://github.com/a810439322/rime-tiger.git` (`main`)
+- `moran`: `https://github.com/rimeinn/rime-moran.git` (`main`)
+
+当前自动构建的小狼毫仓库：
+
+- `official`: `https://github.com/rime/weasel.git` (`master`)
+- `mine`: `https://github.com/a810439322/weasel.git` (`master`)
+- `fxliang`: `https://github.com/fxliang/weasel.git` (`pb`)
+
 ## 添加新的 data 或 weasel 仓库
 
 改 `builds.yaml`，提 commit，push。push 本身会触发一次全量构建。

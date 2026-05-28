@@ -4,6 +4,8 @@ BeforeAll {
   $PackPath = Join-Path $PSScriptRoot '..\pack.ps1'
   $PrepareBoostPath = Join-Path $PSScriptRoot '..\scripts\prepare-boost.ps1'
   $SaveLibrimeCachePath = Join-Path $PSScriptRoot '..\scripts\save-librime-cache.ps1'
+  $WriteInstallerManifestPath = Join-Path $PSScriptRoot '..\scripts\write-installer-manifest.ps1'
+  $WriteReleaseNotesPath = Join-Path $PSScriptRoot '..\scripts\write-release-notes.ps1'
 }
 
 Describe 'workflow YAML parsing' {
@@ -107,6 +109,29 @@ Describe 'build workflow Windows toolchain' {
     $content = Get-Content -LiteralPath $WorkflowPath -Raw
 
     $content | Should -Match '(?s)build:\s+needs: plan.*?runs-on:\s*windows-2022'
+  }
+}
+
+Describe 'build workflow release notes' {
+  It 'uploads one manifest per installer and renders release notes from manifests' {
+    $content = Get-Content -LiteralPath $WorkflowPath -Raw
+
+    $rename = $content.IndexOf('name: Rename installer', [StringComparison]::Ordinal)
+    $manifest = $content.IndexOf('name: Write installer manifest', [StringComparison]::Ordinal)
+    $uploadManifest = $content.IndexOf('name: Upload installer manifest', [StringComparison]::Ordinal)
+    $writeNotes = $content.IndexOf('name: Write release notes', [StringComparison]::Ordinal)
+    $release = $content.IndexOf('name: Release', [StringComparison]::Ordinal)
+
+    $manifest | Should -BeGreaterThan $rename
+    $uploadManifest | Should -BeGreaterThan $manifest
+    $writeNotes | Should -BeGreaterThan $uploadManifest
+    $release | Should -BeGreaterThan $writeNotes
+    $content | Should -Match 'body_path:\s*out/release-notes\.md'
+  }
+
+  It 'uses dedicated scripts for installer manifests and release notes' {
+    Test-Path -LiteralPath $WriteInstallerManifestPath | Should -BeTrue
+    Test-Path -LiteralPath $WriteReleaseNotesPath | Should -BeTrue
   }
 }
 
