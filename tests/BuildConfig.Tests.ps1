@@ -8,9 +8,9 @@ Describe 'repository build configuration' {
     $config = Read-BuildsYaml -Path $BuildsPath
     $matrix = @(Expand-BuildMatrix -Config $config)
 
-    $config.datas.Count | Should -Be 4
+    $config.datas.Count | Should -Be 11
     $config.weasels.Count | Should -Be 3
-    $matrix.Count | Should -Be 12
+    $matrix.Count | Should -Be 33
   }
 
   It 'uses release-friendly names for official and qing Weasel variants' {
@@ -24,7 +24,7 @@ Describe 'repository build configuration' {
     $rime.ref | Should -Be 'master'
 
     $qing | Should -Not -BeNullOrEmpty
-    $qing.display | Should -Be '我的小狼毫'
+    $qing.display | Should -Be '晴版小狼毫'
     $qing.url | Should -Be 'https://github.com/a810439322/weasel.git'
     $qing.ref | Should -Be 'master'
   }
@@ -55,6 +55,28 @@ Describe 'repository build configuration' {
     $lutai.ref | Should -Be 'dev'
   }
 
+  It 'includes additional Rime data packages' {
+    $config = Read-BuildsYaml -Path $BuildsPath
+    $expected = @(
+      @{ name = 'openfly'; display = '小鹤音形'; url = 'https://github.com/amorphobia/openfly.git'; ref = 'main' },
+      @{ name = 'crane'; display = '凇鹤拼音'; url = 'https://github.com/kchen0x/rime-crane.git'; ref = 'main' },
+      @{ name = 'snow-pinyin'; display = '冰雪拼音'; url = 'https://github.com/rimeinn/rime-snow-pinyin.git'; ref = 'main' },
+      @{ name = 'jdhe'; display = '简单鹤'; url = 'https://github.com/rimeinn/rime-JDhe.git'; ref = 'main' },
+      @{ name = 'kagiroi'; display = '日语'; url = 'https://github.com/rimeinn/rime-kagiroi.git'; ref = 'main' },
+      @{ name = 'mungyeong'; display = '韩语'; url = 'https://github.com/rimeinn/rime-mungyeong.git'; ref = 'main' },
+      @{ name = 'zrlong'; display = '龙码双拼'; url = 'https://github.com/rimeinn/rime-zrlong.git'; ref = 'main' }
+    )
+
+    foreach ($item in $expected) {
+      $data = $config.datas | Where-Object { $_.name -eq $item.name }
+
+      $data | Should -Not -BeNullOrEmpty
+      $data.display | Should -Be $item.display
+      $data.url | Should -Be $item.url
+      $data.ref | Should -Be $item.ref
+    }
+  }
+
   It 'carries display names into the build matrix' {
     $config = Read-BuildsYaml -Path $BuildsPath
     $matrix = @(Expand-BuildMatrix -Config $config)
@@ -63,5 +85,10 @@ Describe 'repository build configuration' {
     $tigerRime | Should -Not -BeNullOrEmpty
     $tigerRime.data_display | Should -Be '虎码'
     $tigerRime.weasel_display | Should -Be '官方小狼毫'
+
+    $openflyQing = $matrix | Where-Object { $_.data_name -eq 'openfly' -and $_.weasel_name -eq 'qing' }
+    $openflyQing | Should -Not -BeNullOrEmpty
+    $openflyQing.data_display | Should -Be '小鹤音形'
+    $openflyQing.weasel_display | Should -Be '晴版小狼毫'
   }
 }

@@ -21,7 +21,7 @@
 示例：
 
 - `weasel-tiger-rime-0.17.4-installer.exe`：虎码 + 官方小狼毫。
-- `weasel-tiger-qing-0.17.4-installer.exe`：虎码 + 我的小狼毫。
+- `weasel-tiger-qing-0.17.4-installer.exe`：虎码 + 晴版小狼毫。
 
 ### 方案名
 
@@ -31,13 +31,20 @@
 | `moran` | 魔然 | `https://github.com/rimeinn/rime-moran.git` | `main` |
 | `092wb` | 092五笔 | `https://github.com/092wb/092wb.git` | `main` |
 | `lutai` | 露台码 | `https://github.com/Flauver/lutai.git` | `dev` |
+| `openfly` | 小鹤音形 | `https://github.com/amorphobia/openfly.git` | `main` |
+| `crane` | 凇鹤拼音 | `https://github.com/kchen0x/rime-crane.git` | `main` |
+| `snow-pinyin` | 冰雪拼音 | `https://github.com/rimeinn/rime-snow-pinyin.git` | `main` |
+| `jdhe` | 简单鹤 | `https://github.com/rimeinn/rime-JDhe.git` | `main` |
+| `kagiroi` | 日语 | `https://github.com/rimeinn/rime-kagiroi.git` | `main` |
+| `mungyeong` | 韩语 | `https://github.com/rimeinn/rime-mungyeong.git` | `main` |
+| `zrlong` | 龙码双拼 | `https://github.com/rimeinn/rime-zrlong.git` | `main` |
 
 ### 小狼毫版本名
 
 | 短名 | 说明 | 仓库 | 分支 |
 | --- | --- | --- | --- |
 | `rime` | 官方小狼毫 | `https://github.com/rime/weasel.git` | `master` |
-| `qing` | 我的小狼毫 | `https://github.com/a810439322/weasel.git` | `master` |
+| `qing` | 晴版小狼毫 | `https://github.com/a810439322/weasel.git` | `master` |
 | `fxliang` | fxliang 小狼毫 | `https://github.com/fxliang/weasel.git` | `pb` |
 
 ### Release 正文怎么看
