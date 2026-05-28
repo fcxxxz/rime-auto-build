@@ -3,6 +3,7 @@
 $ScriptDir = Split-Path -Parent $PSCommandPath
 Import-Module (Join-Path $ScriptDir 'scripts\lib\Toolchain.psm1') -Force
 Import-Module (Join-Path $ScriptDir 'scripts\lib\CustomData.psm1') -Force
+Import-Module (Join-Path $ScriptDir 'scripts\lib\NsiPatch.psm1') -Force
 
 # ---------------------------------------------------------------------------
 # User-tweakable paths and options.
@@ -1270,9 +1271,6 @@ $textServicesRefreshMacroInsertion = @(
   '; ---END_PACK_PS1_REFRESH_TEXT_SERVICES_MACRO---'
 )
 
-$stopServerReplacements = @{}
-$stopServerReplacements['$R1\WeaselServer.exe'] = '  !insertmacro PACK_PS1_STOP_WEASEL_SERVER $R1\WeaselServer.exe'
-$stopServerReplacements['$INSTDIR\WeaselServer.exe'] = '  !insertmacro PACK_PS1_STOP_WEASEL_SERVER $INSTDIR\WeaselServer.exe'
 $textServicesRefreshAnchors = @('$R1\WeaselSetup.exe', '$INSTDIR\WeaselSetup.exe')
 
 $patched = New-Object System.Collections.Generic.List[string]
@@ -1302,14 +1300,7 @@ foreach ($line in $nsiLines) {
     foreach ($ins in $skipRestoreInsertion) { $patched.Add($ins) }
     $inserted5 = $true
   }
-  $stopServerReplacement = $null
-  foreach ($serverExe in $stopServerReplacements.Keys) {
-    $rawStopLine = "ExecWait '`"$serverExe`" /stop'"
-    if ($line.Trim() -eq $rawStopLine) {
-      $stopServerReplacement = $stopServerReplacements[$serverExe]
-      break
-    }
-  }
+  $stopServerReplacement = Get-PackNsiStopServerReplacement $line
   if ($stopServerReplacement) {
     $patched.Add($stopServerReplacement)
     $stopServerReplacementCount++
