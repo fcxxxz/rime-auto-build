@@ -68,7 +68,7 @@ jobs:
         env:
           GIT_TERMINAL_PROMPT: '0'
         run: |
-          git clone --depth 1 -b ${{ matrix.data_ref }} ${{ matrix.data_url }} custom-data
+          git -c core.symlinks=true clone --depth 1 -b ${{ matrix.data_ref }} ${{ matrix.data_url }} custom-data
           Write-Host "data HEAD:"
           git -C custom-data rev-parse HEAD
 

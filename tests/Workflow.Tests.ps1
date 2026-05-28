@@ -74,6 +74,14 @@ Describe 'build workflow Windows toolchain' {
   }
 }
 
+Describe 'build workflow data checkout' {
+  It 'enables symlink checkout for data repositories on Windows' {
+    $content = Get-Content -LiteralPath $WorkflowPath -Raw
+
+    $content | Should -Match 'git -c core\.symlinks=true clone --depth 1 -b \$\{\{ matrix\.data_ref \}\} \$\{\{ matrix\.data_url \}\} custom-data'
+  }
+}
+
 Describe 'pack script Boost preparation' {
   It 'builds Boost libraries with target-matching Visual Studio prompts' {
     $content = Get-Content -LiteralPath $PackPath -Raw

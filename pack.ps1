@@ -2,6 +2,7 @@
 
 $ScriptDir = Split-Path -Parent $PSCommandPath
 Import-Module (Join-Path $ScriptDir 'scripts\lib\Toolchain.psm1') -Force
+Import-Module (Join-Path $ScriptDir 'scripts\lib\CustomData.psm1') -Force
 
 # ---------------------------------------------------------------------------
 # User-tweakable paths and options.
@@ -982,17 +983,12 @@ $customFiles = Get-ChildItem -LiteralPath $customRoot -Recurse -File
 $customRelList = New-Object System.Collections.Generic.List[string]
 $customBasenameSet = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
 foreach ($f in $customFiles) {
-  $rel = $f.FullName.Substring($customRoot.Length).TrimStart('\','/')
-  $relSlash = $rel -replace '\\','/'
-  $customRelList.Add($relSlash)
-  [void]$customBasenameSet.Add([System.IO.Path]::GetFileName($rel))
-
-  $dst = Join-Path $outputData $rel
-  $dstDir = Split-Path -Parent $dst
-  if (-not (Test-Path -LiteralPath $dstDir)) {
-    New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
+  $relSlash = Copy-PackCustomDataFile -File $f -CustomRoot $customRoot -OutputData $outputData
+  if (-not $relSlash) {
+    continue
   }
-  Copy-Item -LiteralPath $f.FullName -Destination $dst -Force
+  $customRelList.Add($relSlash)
+  [void]$customBasenameSet.Add([System.IO.Path]::GetFileName($relSlash))
 }
 Write-Host ("  copied {0} file(s)" -f $customRelList.Count)
 
