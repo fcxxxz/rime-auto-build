@@ -188,33 +188,6 @@ function Add-BoostLibrariesToDependencies {
     return ($items -join ';')
 }
 
-function Add-BoostOptionsToAdditionalOptions {
-    param(
-        [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalOptions,
-        [Parameter(Mandatory)][string[]]$Options
-    )
-
-    $current = $AdditionalOptions.Trim()
-    $missing = @($Options | Where-Object {
-        $current -notmatch [regex]::Escape($_)
-    })
-
-    if ($missing.Count -eq 0) {
-        return $current
-    }
-
-    $insert = ($missing -join ' ')
-    if ([string]::IsNullOrWhiteSpace($current)) {
-        return "$insert %(AdditionalOptions)"
-    }
-
-    if ($current -match [regex]::Escape('%(AdditionalOptions)')) {
-        return ($current -replace [regex]::Escape('%(AdditionalOptions)'), "$insert %(AdditionalOptions)")
-    }
-
-    return "$current $insert %(AdditionalOptions)"
-}
-
 function Remove-BoostOptionsFromAdditionalOptions {
     param(
         [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalOptions
@@ -233,6 +206,76 @@ function Remove-BoostOptionsFromAdditionalOptions {
     }
 
     return ($items -join ' ')
+}
+
+function Remove-BoostLibrariesFromDependencies {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalDependencies
+    )
+
+    $items = New-Object System.Collections.Generic.List[string]
+    foreach ($item in ($AdditionalDependencies -split ';')) {
+        if ([string]::IsNullOrWhiteSpace($item)) {
+            continue
+        }
+        $trimmed = $item.Trim()
+        if ($trimmed -match '^(?:.*[\\/])?libboost_[^"\s;]+\.lib"?$') {
+            continue
+        }
+        $items.Add($trimmed)
+    }
+
+    return ($items -join ';')
+}
+
+function Ensure-InheritedLinkOptions {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$AdditionalOptions
+    )
+
+    $current = $AdditionalOptions.Trim()
+    if ([string]::IsNullOrWhiteSpace($current)) {
+        return '%(AdditionalOptions)'
+    }
+    if ($current -notmatch [regex]::Escape('%(AdditionalOptions)')) {
+        return "$current %(AdditionalOptions)"
+    }
+    return $current
+}
+
+function Add-BoostTailLinkInputsToProject {
+    param(
+        [Parameter(Mandatory)][xml]$ProjectXml,
+        [Parameter(Mandatory)]$NamespaceManager
+    )
+
+    $project = $ProjectXml.DocumentElement
+    $target = $ProjectXml.SelectSingleNode("//msb:Target[@Name='AddBoostTailLinkInputs']", $NamespaceManager)
+    if ($target) {
+        [void]$project.RemoveChild($target)
+    }
+
+    $target = $ProjectXml.CreateElement('Target', $project.NamespaceURI)
+    [void]$target.SetAttribute('Name', 'AddBoostTailLinkInputs')
+    [void]$target.SetAttribute('BeforeTargets', 'Link')
+
+    foreach ($case in @(
+        @{ Platform = 'Win32'; Arch = 'x32' },
+        @{ Platform = 'x64'; Arch = 'x64' }
+    )) {
+        $itemGroup = $ProjectXml.CreateElement('ItemGroup', $project.NamespaceURI)
+        [void]$itemGroup.SetAttribute('Condition', "'`$(Configuration)|`$(Platform)'=='Release|$($case.Platform)'")
+
+        foreach ($library in Get-BoostLinkLibraries $case.Arch) {
+            $linkItem = $ProjectXml.CreateElement('Link', $project.NamespaceURI)
+            [void]$linkItem.SetAttribute('Include', "`$(BOOST_ROOT)\stage\lib\$library")
+            [void]$itemGroup.AppendChild($linkItem)
+        }
+
+        [void]$target.AppendChild($itemGroup)
+    }
+
+    [void]$project.AppendChild($target)
 }
 
 function Add-BoostLinkLibrariesToProject {
@@ -261,9 +304,6 @@ function Add-BoostLinkLibrariesToProject {
             continue
         }
 
-        $boostLibraries = Get-BoostLinkLibraries $arch
-        $boostOptions = Get-BoostLinkOptions $arch
-
         $additionalOptions = $link.SelectSingleNode('msb:AdditionalOptions', $ns)
         if (-not $additionalOptions) {
             $additionalOptions = $xml.CreateElement('AdditionalOptions', $xml.DocumentElement.NamespaceURI)
@@ -272,9 +312,8 @@ function Add-BoostLinkLibrariesToProject {
 
         $cleanOptions = Remove-BoostOptionsFromAdditionalOptions `
             -AdditionalOptions $additionalOptions.InnerText
-        $updatedOptions = Add-BoostOptionsToAdditionalOptions `
-            -AdditionalOptions $cleanOptions `
-            -Options $boostOptions
+        $updatedOptions = Ensure-InheritedLinkOptions `
+            -AdditionalOptions $cleanOptions
         if ($additionalOptions.InnerText -ne $updatedOptions) {
             $additionalOptions.InnerText = $updatedOptions
             $changed = $true
@@ -286,14 +325,16 @@ function Add-BoostLinkLibrariesToProject {
             [void]$link.AppendChild($additional)
         }
 
-        $updated = Add-BoostLibrariesToDependencies `
-            -AdditionalDependencies $additional.InnerText `
-            -Libraries $boostLibraries
+        $updated = Remove-BoostLibrariesFromDependencies `
+            -AdditionalDependencies $additional.InnerText
         if ($additional.InnerText -ne $updated) {
             $additional.InnerText = $updated
             $changed = $true
         }
     }
+
+    Add-BoostTailLinkInputsToProject -ProjectXml $xml -NamespaceManager $ns
+    $changed = $true
 
     if ($changed) {
         $settings = [System.Xml.XmlWriterSettings]::new()

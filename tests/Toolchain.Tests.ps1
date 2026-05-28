@@ -101,7 +101,7 @@ Describe 'Get-BoostLinkLibraries' {
 }
 
 Describe 'Add-BoostLinkLibrariesToProject' {
-  It 'adds Boost libraries as normal dependencies while keeping full-path whole-archive options' {
+  It 'adds Boost libraries as tail link inputs after project libraries' {
     $projectPath = Join-Path $TestDrive 'WeaselServer.vcxproj'
     [System.IO.File]::WriteAllText(
       $projectPath,
@@ -141,21 +141,34 @@ Describe 'Add-BoostLinkLibrariesToProject' {
       @{ Platform = 'x64'; Arch = 'x64'; Existing = 'imm32.lib' }
     )) {
       $group = $xml.SelectSingleNode("//msb:ItemDefinitionGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Release|$($case.Platform)`'`"]", $ns)
-      $libraries = @(Get-BoostLinkLibraries $case.Arch)
-      $expectedDependencies = (($libraries + $case.Existing + '%(AdditionalDependencies)') -join ';')
-      $expectedOptions = @(($libraries | ForEach-Object {
-        "/WHOLEARCHIVE:`"`$(BOOST_ROOT)\stage\lib\$_`""
-      }) -join ' ')
-
+      $expectedDependencies = @(($case.Existing, '%(AdditionalDependencies)') -join ';')
+      $expectedOptions = '%(AdditionalOptions)'
       if ($case.Platform -eq 'x64') {
         $expectedOptions = "/DEBUG $expectedOptions"
       }
-      $expectedOptions = "$expectedOptions %(AdditionalOptions)"
 
       $group.Link.AdditionalDependencies | Should -Be $expectedDependencies
       $group.Link.AdditionalOptions | Should -Be $expectedOptions
-      (@($group.Link.AdditionalDependencies -split ';' | Where-Object { $_ -eq "libboost_thread-vc143-mt-s-$($case.Arch)-1_84.lib" })).Count | Should -Be 1
-      (@($group.Link.AdditionalOptions -split '\s+' | Where-Object { $_ -eq "/WHOLEARCHIVE:`"`$(BOOST_ROOT)\stage\lib\libboost_thread-vc143-mt-s-$($case.Arch)-1_84.lib`"" })).Count | Should -Be 1
+      $group.Link.AdditionalDependencies | Should -Not -Match 'libboost_'
+      $group.Link.AdditionalOptions | Should -Not -Match 'libboost_'
+    }
+
+    $tailTarget = $xml.SelectSingleNode("//msb:Target[@Name='AddBoostTailLinkInputs']", $ns)
+    $tailTarget | Should -Not -BeNullOrEmpty
+    $tailTarget.GetAttribute('BeforeTargets') | Should -Be 'Link'
+
+    foreach ($case in @(
+      @{ Platform = 'Win32'; Arch = 'x32' },
+      @{ Platform = 'x64'; Arch = 'x64' }
+    )) {
+      $items = @($tailTarget.SelectNodes(
+          "msb:ItemGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Release|$($case.Platform)`'`"]/msb:Link",
+          $ns
+        ))
+      $items.Count | Should -Be 10
+      $items[0].GetAttribute('Include') | Should -Be "`$(BOOST_ROOT)\stage\lib\libboost_filesystem-vc143-mt-s-$($case.Arch)-1_84.lib"
+      $items[-1].GetAttribute('Include') | Should -Be "`$(BOOST_ROOT)\stage\lib\libboost_atomic-vc143-mt-s-$($case.Arch)-1_84.lib"
+      (@($items | Where-Object { $_.GetAttribute('Include') -like '*libboost_thread*' })).Count | Should -Be 1
     }
 
     $debugGroup = $xml.SelectSingleNode("//msb:ItemDefinitionGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Debug|Win32`'`"]", $ns)
