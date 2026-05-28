@@ -100,6 +100,18 @@ function Format-SourceSummaryCell {
   return "$display<br>$commitTime"
 }
 
+function Format-SourceTimeCell {
+  param(
+    [Parameter(Mandatory)]$Source
+  )
+
+  $commitTime = Format-ChinaTime (Get-ManifestValue -Object $Source -PropertyName 'commit_time')
+  if ([string]::IsNullOrWhiteSpace($commitTime)) {
+    return '-'
+  }
+  return $commitTime
+}
+
 function Format-InstallerLink {
   param(
     [Parameter(Mandatory)][string]$InstallerName,
@@ -113,6 +125,18 @@ function Format-InstallerLink {
 
   $encodedName = [Uri]::EscapeDataString($InstallerName)
   return "[$InstallerName](https://github.com/$Repository/releases/download/$ReleaseTag/$encodedName)"
+}
+
+function Get-WeaselSortOrder {
+  param([Parameter(Mandatory)]$Manifest)
+
+  $name = Get-ManifestValue -Object $Manifest.weasel -PropertyName 'name'
+  switch ($name) {
+    'rime' { return 0 }
+    'fxliang' { return 1 }
+    'qing' { return 2 }
+    default { return 100 }
+  }
 }
 
 function ConvertFrom-ReleaseNotes {
@@ -192,15 +216,31 @@ function New-ReleaseNotes {
   $lines.Add('')
   $lines.Add('## 安装包说明')
   $lines.Add('')
-  $lines.Add('| 方案 | 小狼毫 | 安装包 |')
-  $lines.Add('| --- | --- | --- |')
 
-  foreach ($manifest in @($Manifests | Sort-Object installer)) {
-    $installer = Get-ManifestValue -Object $manifest -PropertyName 'installer'
-    $dataCell = Format-SourceSummaryCell -Source $manifest.data
-    $weaselCell = Format-SourceSummaryCell -Source $manifest.weasel
-    $installerCell = Format-InstallerLink -InstallerName $installer -ReleaseTag $ReleaseTag -Repository $Repository
-    $lines.Add("| $dataCell | $weaselCell | $installerCell |")
+  $sortedManifests = @($Manifests |
+    Sort-Object @{ Expression = { Get-WeaselSortOrder -Manifest $_ } }, @{ Expression = { Get-ManifestValue -Object $_.data -PropertyName 'display' -Default (Get-ManifestValue -Object $_.data -PropertyName 'name') } }, installer)
+  $weaselNames = @($sortedManifests |
+    ForEach-Object { Get-ManifestValue -Object $_.weasel -PropertyName 'name' } |
+    Select-Object -Unique)
+
+  foreach ($weaselName in $weaselNames) {
+    $group = @($sortedManifests | Where-Object { (Get-ManifestValue -Object $_.weasel -PropertyName 'name') -eq $weaselName })
+    $first = $group[0]
+    $weaselDisplay = Get-ManifestValue -Object $first.weasel -PropertyName 'display' -Default (Get-ManifestValue -Object $first.weasel -PropertyName 'name')
+    $lines.Add("### $weaselDisplay")
+    $lines.Add('')
+    $lines.Add('| 方案 | 提交时间 | 安装包 |')
+    $lines.Add('| --- | --- | --- |')
+
+    foreach ($manifest in $group) {
+      $installer = Get-ManifestValue -Object $manifest -PropertyName 'installer'
+      $dataName = Get-ManifestValue -Object $manifest.data -PropertyName 'name'
+      $dataDisplay = Get-ManifestValue -Object $manifest.data -PropertyName 'display' -Default $dataName
+      $commitTime = Format-SourceTimeCell -Source $manifest.data
+      $installerCell = Format-InstallerLink -InstallerName $installer -ReleaseTag $ReleaseTag -Repository $Repository
+      $lines.Add("| $dataDisplay | $commitTime | $installerCell |")
+    }
+    $lines.Add('')
   }
 
   return ($lines -join "`n") + "`n"

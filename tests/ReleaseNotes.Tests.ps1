@@ -33,8 +33,46 @@ Describe 'New-InstallerManifest' {
 }
 
 Describe 'New-ReleaseNotes' {
-  It 'lists each installer by data, weasel, and a downloadable installer link' {
+  It 'groups installer tables by Weasel variant in the requested order' {
     $manifests = @(
+      [pscustomobject]@{
+        installer = 'weasel-moran-qing-0.17.4-installer.exe'
+        data = [pscustomobject]@{
+          name = 'moran'
+          display = '魔然'
+          url = 'https://github.com/rimeinn/rime-moran.git'
+          ref = 'main'
+          sha = '1111111111111111111111111111111111111111'
+          commit_time = '2026-05-27T10:11:12+00:00'
+        }
+        weasel = [pscustomobject]@{
+          name = 'qing'
+          display = '晴版小狼毫'
+          url = 'https://github.com/a810439322/weasel.git'
+          ref = 'master'
+          sha = '3333333333333333333333333333333333333333'
+          commit_time = '2026-05-22T03:59:40+00:00'
+        }
+      }
+      [pscustomobject]@{
+        installer = 'weasel-moran-fxliang-0.17.4-installer.exe'
+        data = [pscustomobject]@{
+          name = 'moran'
+          display = '魔然'
+          url = 'https://github.com/rimeinn/rime-moran.git'
+          ref = 'main'
+          sha = '1111111111111111111111111111111111111111'
+          commit_time = '2026-05-27T10:11:12+00:00'
+        }
+        weasel = [pscustomobject]@{
+          name = 'fxliang'
+          display = 'fxliang 小狼毫'
+          url = 'https://github.com/fxliang/weasel.git'
+          ref = 'pb'
+          sha = '2222222222222222222222222222222222222222'
+          commit_time = '2026-05-07T05:54:33+00:00'
+        }
+      }
       [pscustomobject]@{
         installer = 'weasel-moran-rime-0.17.4-installer.exe'
         data = [pscustomobject]@{
@@ -50,8 +88,8 @@ Describe 'New-ReleaseNotes' {
           display = '官方小狼毫'
           url = 'https://github.com/rime/weasel.git'
           ref = 'master'
-          sha = '2222222222222222222222222222222222222222'
-          commit_time = '2026-05-28T01:02:03+00:00'
+          sha = '4444444444444444444444444444444444444444'
+          commit_time = '2026-03-06T09:26:08+00:00'
         }
       }
     )
@@ -65,8 +103,18 @@ Describe 'New-ReleaseNotes' {
       -Manifests $manifests
 
     $notes | Should -Match '## 安装包说明'
-    $notes | Should -Match '\| 方案 \| 小狼毫 \| 安装包 \|'
-    $notes | Should -Match '\| 魔然<br>2026-05-27 18:11:12 \| 官方小狼毫<br>2026-05-28 09:02:03 \| \[weasel-moran-rime-0\.17\.4-installer\.exe\]\(https://github\.com/a810439322/rime-auto-build/releases/download/build-20260528-1838-upstream/weasel-moran-rime-0\.17\.4-installer\.exe\) \|'
+    $officialIndex = $notes.IndexOf('### 官方小狼毫', [StringComparison]::Ordinal)
+    $fxliangIndex = $notes.IndexOf('### fxliang 小狼毫', [StringComparison]::Ordinal)
+    $qingIndex = $notes.IndexOf('### 晴版小狼毫', [StringComparison]::Ordinal)
+
+    $officialIndex | Should -BeGreaterOrEqual 0
+    $fxliangIndex | Should -BeGreaterThan $officialIndex
+    $qingIndex | Should -BeGreaterThan $fxliangIndex
+    ([regex]::Matches($notes, '\| 方案 \| 提交时间 \| 安装包 \|')).Count | Should -Be 3
+    $notes | Should -Match '\| 魔然 \| 2026-05-27 18:11:12 \| \[weasel-moran-rime-0\.17\.4-installer\.exe\]\(https://github\.com/a810439322/rime-auto-build/releases/download/build-20260528-1838-upstream/weasel-moran-rime-0\.17\.4-installer\.exe\) \|'
+    $notes | Should -Match '\| 魔然 \| 2026-05-27 18:11:12 \| \[weasel-moran-fxliang-0\.17\.4-installer\.exe\]\(https://github\.com/a810439322/rime-auto-build/releases/download/build-20260528-1838-upstream/weasel-moran-fxliang-0\.17\.4-installer\.exe\) \|'
+    $notes | Should -Match '\| 魔然 \| 2026-05-27 18:11:12 \| \[weasel-moran-qing-0\.17\.4-installer\.exe\]\(https://github\.com/a810439322/rime-auto-build/releases/download/build-20260528-1838-upstream/weasel-moran-qing-0\.17\.4-installer\.exe\) \|'
+    $notes | Should -Not -Match '\| 方案 \| 小狼毫 \| 安装包 \|'
     $notes | Should -Not -Match '`main` @ `1111111`'
     $notes | Should -Not -Match '\[仓库\]'
   }
@@ -129,7 +177,8 @@ Describe 'release notes scripts' {
       -Repository 'a810439322/rime-auto-build'
 
     $notes = Get-Content -LiteralPath $notesPath -Raw
-    $notes | Should -Match '\| 方案 \| 小狼毫 \| 安装包 \|'
-    $notes | Should -Match '\| 魔然<br>2026-05-27 18:11:12 \| fxliang 小狼毫<br>2026-05-28 09:02:03 \| \[weasel-moran-fxliang-0\.17\.4-installer\.exe\]\(https://github\.com/a810439322/rime-auto-build/releases/download/build-20260528-1838-upstream/weasel-moran-fxliang-0\.17\.4-installer\.exe\) \|'
+    $notes | Should -Match '### fxliang 小狼毫'
+    $notes | Should -Match '\| 方案 \| 提交时间 \| 安装包 \|'
+    $notes | Should -Match '\| 魔然 \| 2026-05-27 18:11:12 \| \[weasel-moran-fxliang-0\.17\.4-installer\.exe\]\(https://github\.com/a810439322/rime-auto-build/releases/download/build-20260528-1838-upstream/weasel-moran-fxliang-0\.17\.4-installer\.exe\) \|'
   }
 }
