@@ -88,7 +88,11 @@ Describe 'build workflow librime cache' {
     $content = Get-Content -LiteralPath $WorkflowPath -Raw
 
     $content | Should -Match 'id:\s*librime-rev'
+    $content | Should -Match 'Test-Path -LiteralPath weasel/librime'
     $content | Should -Match 'git -C weasel/librime rev-parse HEAD'
+    $content | Should -Match 'git ls-remote https://github\.com/rime/librime\.git refs/heads/master'
+    $content | Should -Match 'git clone --depth 1 -b master https://github\.com/rime/librime\.git librime'
+    $content | Should -Match 'librime HEAD \(external fallback\)'
     $content | Should -Match 'sdk_version='
     $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-v1'
     $content | Should -Not -Match '(?m)^\s+weasel/output/data/opencc\s*$'

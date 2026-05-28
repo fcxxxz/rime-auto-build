@@ -79,9 +79,21 @@ jobs:
       - name: Resolve librime revision
         id: librime-rev
         shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
         run: |
-          $sha = git -C weasel/librime rev-parse HEAD
-          Write-Host "librime HEAD: $sha"
+          if (Test-Path -LiteralPath weasel/librime) {
+            $sha = git -C weasel/librime rev-parse HEAD
+            Write-Host "librime HEAD: $sha"
+          } else {
+            $remote = git ls-remote https://github.com/rime/librime.git refs/heads/master
+            if ($LASTEXITCODE -ne 0 -or -not $remote) {
+              throw "failed to resolve external librime master"
+            }
+            $sha = ($remote -split "\s+")[0]
+            Write-Host "librime HEAD (external fallback): $sha"
+            git clone --depth 1 -b master https://github.com/rime/librime.git librime
+          }
           "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
 
       - name: Install Visual Studio ATL component
