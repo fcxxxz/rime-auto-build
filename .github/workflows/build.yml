@@ -55,13 +55,15 @@ jobs:
           persist-credentials: false
 
       - name: Clone weasel (recursive)
+        id: weasel-rev
         shell: pwsh
         env:
           GIT_TERMINAL_PROMPT: '0'
         run: |
           git clone --recursive --depth 1 -b ${{ matrix.weasel_ref }} ${{ matrix.weasel_url }} weasel
-          Write-Host "weasel HEAD:"
-          git -C weasel rev-parse HEAD
+          $sha = git -C weasel rev-parse HEAD
+          Write-Host "weasel HEAD: $sha"
+          "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
 
       - name: Clone data -> custom-data
         shell: pwsh
@@ -71,6 +73,14 @@ jobs:
           git -c core.symlinks=true clone --depth 1 -b ${{ matrix.data_ref }} ${{ matrix.data_url }} custom-data
           Write-Host "data HEAD:"
           git -C custom-data rev-parse HEAD
+
+      - name: Resolve librime revision
+        id: librime-rev
+        shell: pwsh
+        run: |
+          $sha = git -C weasel/librime rev-parse HEAD
+          Write-Host "librime HEAD: $sha"
+          "sha=$sha" | Add-Content -Path $env:GITHUB_OUTPUT
 
       - name: Install Visual Studio ATL component
         id: msvc
@@ -112,6 +122,12 @@ jobs:
           Write-Host "Pinning PACK_MSVC_TOOLS_VERSION=$msvcVer for downstream pack.ps1"
           "PACK_MSVC_TOOLS_VERSION=$msvcVer" | Add-Content -Path $env:GITHUB_ENV
           "msvc_tools_version=$msvcVer" | Add-Content -Path $env:GITHUB_OUTPUT
+          $sdk = Get-ChildItem -LiteralPath "${env:ProgramFiles(x86)}\Windows Kits\10\Include" -Directory |
+            Where-Object { $_.Name -match '^10\.\d+\.\d+\.\d+$' } |
+            Sort-Object { [Version]$_.Name } -Descending |
+            Select-Object -First 1 -ExpandProperty Name
+          Write-Host "Windows SDK version: $sdk"
+          "sdk_version=$sdk" | Add-Content -Path $env:GITHUB_OUTPUT
 
       - name: Restore Boost cache
         id: boost-cache
@@ -143,9 +159,87 @@ jobs:
         shell: pwsh
         run: choco install nsis -y --no-progress
 
+      - name: Restore librime cache
+        id: librime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            weasel/include/rime_api.h
+            weasel/include/rime_api_deprecated.h
+            weasel/include/rime_api_stdbool.h
+            weasel/include/rime_levers_api.h
+            weasel/lib64/rime.lib
+            weasel/lib/rime.lib
+            weasel/output/rime.dll
+            weasel/output/rime.pdb
+            weasel/output/Win32/rime.dll
+            weasel/output/Win32/rime.pdb
+            weasel/output/data/opencc/HKVariants.ocd2
+            weasel/output/data/opencc/HKVariantsPhrases.ocd2
+            weasel/output/data/opencc/HKVariantsRev.ocd2
+            weasel/output/data/opencc/JPShinjitaiCharacters.ocd2
+            weasel/output/data/opencc/JPShinjitaiPhrases.ocd2
+            weasel/output/data/opencc/JPVariants.ocd2
+            weasel/output/data/opencc/JPVariantsRev.ocd2
+            weasel/output/data/opencc/STCharacters.ocd2
+            weasel/output/data/opencc/STPhrases.ocd2
+            weasel/output/data/opencc/TSCharacters.ocd2
+            weasel/output/data/opencc/TSPhrases.ocd2
+            weasel/output/data/opencc/TWVariants.ocd2
+            weasel/output/data/opencc/TWVariantsPhrases.ocd2
+            weasel/output/data/opencc/TWVariantsRev.ocd2
+            weasel/output/data/opencc/t2hk.json
+            weasel/output/data/opencc/t2jp.json
+            weasel/output/data/opencc/t2s.json
+            weasel/output/data/opencc/t2tw.json
+            weasel/output/data/opencc/tw2s.json
+          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-v1
+
       - name: Run pack.ps1
         shell: pwsh
         run: ./pack.ps1
+
+      - name: Sync librime outputs for cache
+        if: steps.librime-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/save-librime-cache.ps1
+
+      - name: Save librime cache
+        if: steps.librime-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            weasel/include/rime_api.h
+            weasel/include/rime_api_deprecated.h
+            weasel/include/rime_api_stdbool.h
+            weasel/include/rime_levers_api.h
+            weasel/lib64/rime.lib
+            weasel/lib/rime.lib
+            weasel/output/rime.dll
+            weasel/output/rime.pdb
+            weasel/output/Win32/rime.dll
+            weasel/output/Win32/rime.pdb
+            weasel/output/data/opencc/HKVariants.ocd2
+            weasel/output/data/opencc/HKVariantsPhrases.ocd2
+            weasel/output/data/opencc/HKVariantsRev.ocd2
+            weasel/output/data/opencc/JPShinjitaiCharacters.ocd2
+            weasel/output/data/opencc/JPShinjitaiPhrases.ocd2
+            weasel/output/data/opencc/JPVariants.ocd2
+            weasel/output/data/opencc/JPVariantsRev.ocd2
+            weasel/output/data/opencc/STCharacters.ocd2
+            weasel/output/data/opencc/STPhrases.ocd2
+            weasel/output/data/opencc/TSCharacters.ocd2
+            weasel/output/data/opencc/TSPhrases.ocd2
+            weasel/output/data/opencc/TWVariants.ocd2
+            weasel/output/data/opencc/TWVariantsPhrases.ocd2
+            weasel/output/data/opencc/TWVariantsRev.ocd2
+            weasel/output/data/opencc/t2hk.json
+            weasel/output/data/opencc/t2jp.json
+            weasel/output/data/opencc/t2s.json
+            weasel/output/data/opencc/t2tw.json
+            weasel/output/data/opencc/tw2s.json
+          key: ${{ steps.librime-cache.outputs.cache-primary-key }}
 
       - name: Rename installer
         id: rename
