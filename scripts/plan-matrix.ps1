@@ -48,7 +48,12 @@ switch ($eventName) {
 
 $filtered = @($filtered)
 $includeJson = $filtered | ConvertTo-Json -Compress -AsArray
-$timestamp   = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmm')
+$nowUtc = if ($env:PLAN_NOW_UTC) {
+    ([DateTimeOffset]::Parse($env:PLAN_NOW_UTC, [Globalization.CultureInfo]::InvariantCulture)).UtcDateTime
+} else {
+    (Get-Date).ToUniversalTime()
+}
+$timestamp   = $nowUtc.AddHours(8).ToString('yyyyMMdd-HHmm')
 $tag         = "build-$timestamp$tagSuffix"
 
 if (-not $env:GITHUB_OUTPUT) {

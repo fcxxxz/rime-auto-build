@@ -7,7 +7,8 @@ BeforeAll {
       [string]$EventName,
       [string]$Payload = '',
       [string]$OnlyData = '',
-      [string]$OnlyWeasel = ''
+      [string]$OnlyWeasel = '',
+      [string]$NowUtc = ''
     )
     $outFile = New-TemporaryFile
     $env:GITHUB_OUTPUT      = $outFile.FullName
@@ -16,6 +17,7 @@ BeforeAll {
     $env:DISPATCH_PAYLOAD   = $Payload
     $env:INPUT_ONLY_DATA    = $OnlyData
     $env:INPUT_ONLY_WEASEL  = $OnlyWeasel
+    $env:PLAN_NOW_UTC       = $NowUtc
     & pwsh -NoProfile -File $ScriptPath
     if ($LASTEXITCODE -ne 0) { throw "plan-matrix.ps1 exited $LASTEXITCODE" }
     $content = Get-Content $outFile.FullName -Raw
@@ -38,6 +40,10 @@ Describe 'plan-matrix.ps1' {
     It 'tag has -config suffix' {
       $r = Invoke-PlanMatrix -EventName 'push'
       $r.tag | Should -Match '^build-\d{8}-\d{4}-config$'
+    }
+    It 'uses Beijing time in generated tags' {
+      $r = Invoke-PlanMatrix -EventName 'push' -NowUtc '2026-05-28T08:34:00Z'
+      $r.tag | Should -Be 'build-20260528-1634-config'
     }
   }
 

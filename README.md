@@ -57,6 +57,8 @@
 
 README 里只列当前配置；具体某个安装包来自哪个提交、最后提交时间是多少，以对应 Release 正文为准。
 
+Release tag 使用 `build-YYYYMMDD-HHMM-类型` 格式，`HHMM` 是北京时间。
+
 ## 添加新的 data 或 weasel 仓库
 
 改 `builds.yaml`，提 commit，push。push 本身会触发一次全量构建。
