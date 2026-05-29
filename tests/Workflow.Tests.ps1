@@ -100,7 +100,11 @@ Describe 'package request workflow' {
   It 'comments success and failure details back to the issue' {
     $content = Get-Content -LiteralPath $PackageRequestWorkflowPath -Raw
 
-    $content | Should -Match 'gh issue comment \$\{\{ github\.event\.issue\.number \}\}'
+    $content | Should -Match 'gh issue comment \$\{\{ github\.event\.issue\.number \}\} --repo \$\{\{ github\.repository \}\}'
+    $content | Should -Match 'gh issue edit \$\{\{ github\.event\.issue\.number \}\} --repo \$\{\{ github\.repository \}\}'
+    $content | Should -Match 'gh issue close \$\{\{ github\.event\.issue\.number \}\} --repo \$\{\{ github\.repository \}\}'
+    $content | Should -Match 'gh label create "package succeeded" --repo \$\{\{ github\.repository \}\}'
+    $content | Should -Match 'gh label create "package failure" --repo \$\{\{ github\.repository \}\}'
     $content | Should -Match '--body-file'
     $content | Should -Match '校验通过，开始打包'
     $content | Should -Match '打包完成'

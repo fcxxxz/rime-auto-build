@@ -109,7 +109,7 @@ jobs:
 
           详情见 https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
-          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file comment.md
 
       - name: Comment validation failure
         if: failure()
@@ -121,10 +121,10 @@ jobs:
 
           详情见 https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
-          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
-          gh label create "package failure" --color D93F0B --description "One-off package request failed" || true
-          gh issue edit ${{ github.event.issue.number }} --add-label "package failure"
-          gh issue close ${{ github.event.issue.number }} --reason "not planned"
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file comment.md
+          gh label create "package failure" --repo ${{ github.repository }} --color D93F0B --description "One-off package request failed" || true
+          gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "package failure"
+          gh issue close ${{ github.event.issue.number }} --repo ${{ github.repository }} --reason "not planned"
 
   build:
     needs: validate
@@ -439,9 +439,9 @@ jobs:
 
           https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
-          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
-          gh label create "package failure" --color D93F0B --description "One-off package request failed" || true
-          gh issue edit ${{ github.event.issue.number }} --add-label "package failure"
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file comment.md
+          gh label create "package failure" --repo ${{ github.repository }} --color D93F0B --description "One-off package request failed" || true
+          gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "package failure"
 
   report:
     needs: [validate, build]
@@ -460,7 +460,7 @@ jobs:
 
           Artifacts 有 GitHub 保留期限。
           EOF
-          gh issue comment ${{ github.event.issue.number }} --body-file comment.md
-          gh label create "package succeeded" --color 0E8A16 --description "One-off package request succeeded" || true
-          gh issue edit ${{ github.event.issue.number }} --add-label "package succeeded"
-          gh issue close ${{ github.event.issue.number }} --reason "completed"
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file comment.md
+          gh label create "package succeeded" --repo ${{ github.repository }} --color 0E8A16 --description "One-off package request succeeded" || true
+          gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "package succeeded"
+          gh issue close ${{ github.event.issue.number }} --repo ${{ github.repository }} --reason "completed"
