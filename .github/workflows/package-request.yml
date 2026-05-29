@@ -17,7 +17,23 @@ concurrency:
 
 jobs:
   validate:
-    if: ${{ startsWith(github.event.issue.title, 'Package: ') && ((github.event.action == 'opened' && (contains(github.event.issue.body, '### 公开 GitHub 仓库') || contains(github.event.issue.body, '### Repository'))) || (github.event.action == 'labeled' && github.event.label.name == 'package request')) }}
+    if: >-
+      ${{
+        startsWith(github.event.issue.title, 'Package: ') &&
+        (
+          (
+            github.event.action == 'opened' &&
+            (
+              contains(github.event.issue.body, '### 公开 GitHub 仓库') ||
+              contains(github.event.issue.body, '### Repository')
+            )
+          ) ||
+          (
+            github.event.action == 'labeled' &&
+            github.event.label.name == 'package request'
+          )
+        )
+      }}
     runs-on: ubuntu-latest
     outputs:
       valid: ${{ steps.prepare.outputs.valid }}
