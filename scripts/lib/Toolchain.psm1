@@ -206,6 +206,40 @@ function Get-ExpectedBoostLibraries {
     )
 }
 
+function Get-ExpectedBoostMachine {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('x32', 'x64')]
+        [string]$Architecture
+    )
+
+    if ($Architecture -eq 'x64') {
+        return '8664'
+    }
+    return '14C'
+}
+
+function Test-DumpbinHeadersMatchMachine {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string[]]$DumpbinOutput,
+        [Parameter(Mandatory)][string]$Machine
+    )
+
+    $machineLines = @($DumpbinOutput | Where-Object {
+        $_ -match '^\s*[0-9A-Fa-f]+\s+machine\s+\('
+    })
+    if ($machineLines.Count -eq 0) {
+        return $false
+    }
+
+    foreach ($line in $machineLines) {
+        if ($line -notmatch "^\s*$Machine\s+machine\s+\(") {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Get-MissingBoostLibraries {
     param([Parameter(Mandatory)][string]$BoostRoot)
 
@@ -213,6 +247,33 @@ function Get-MissingBoostLibraries {
     return @(Get-ExpectedBoostLibraries | Where-Object {
         -not (Test-Path -LiteralPath (Join-Path $stageLib $_))
     })
+}
+
+function Get-InvalidBoostLibraries {
+    param(
+        [Parameter(Mandatory)][string]$BoostRoot,
+        [Parameter(Mandatory)][scriptblock]$ReadHeaders
+    )
+
+    $stageLib = Join-Path $BoostRoot 'stage\lib'
+    $invalid = New-Object System.Collections.Generic.List[string]
+
+    foreach ($case in Get-BoostBuildArchitectures) {
+        $expectedMachine = Get-ExpectedBoostMachine $case.Architecture
+        foreach ($library in Get-BoostLinkLibraries $case.Architecture) {
+            $path = Join-Path $stageLib $library
+            if (-not (Test-Path -LiteralPath $path)) {
+                continue
+            }
+
+            $headers = @(& $ReadHeaders $path)
+            if (-not (Test-DumpbinHeadersMatchMachine -DumpbinOutput $headers -Machine $expectedMachine)) {
+                $invalid.Add($library)
+            }
+        }
+    }
+
+    return @($invalid)
 }
 
 function New-BoostProjectConfig {
@@ -241,6 +302,21 @@ function Add-BoostLibrariesToDependencies {
 
     $items = New-Object System.Collections.Generic.List[string]
     $seen = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
+    $hasInheritedDependencies = $false
+
+    foreach ($item in ($AdditionalDependencies -split ';')) {
+        if ([string]::IsNullOrWhiteSpace($item)) {
+            continue
+        }
+        $trimmed = $item.Trim()
+        if ($trimmed -eq '%(AdditionalDependencies)') {
+            $hasInheritedDependencies = $true
+            continue
+        }
+        if ($seen.Add($trimmed)) {
+            $items.Add($trimmed)
+        }
+    }
 
     foreach ($lib in $Libraries) {
         if ($seen.Add($lib)) {
@@ -248,14 +324,8 @@ function Add-BoostLibrariesToDependencies {
         }
     }
 
-    foreach ($item in ($AdditionalDependencies -split ';')) {
-        if ([string]::IsNullOrWhiteSpace($item)) {
-            continue
-        }
-        $trimmed = $item.Trim()
-        if ($seen.Add($trimmed)) {
-            $items.Add($trimmed)
-        }
+    if ($hasInheritedDependencies) {
+        $items.Add('%(AdditionalDependencies)')
     }
 
     return ($items -join ';')
@@ -316,41 +386,6 @@ function Ensure-InheritedLinkOptions {
     return $current
 }
 
-function Add-BoostTailLinkInputsToProject {
-    param(
-        [Parameter(Mandatory)][xml]$ProjectXml,
-        [Parameter(Mandatory)]$NamespaceManager
-    )
-
-    $project = $ProjectXml.DocumentElement
-    $target = $ProjectXml.SelectSingleNode("//msb:Target[@Name='AddBoostTailLinkInputs']", $NamespaceManager)
-    if ($target) {
-        [void]$project.RemoveChild($target)
-    }
-
-    $target = $ProjectXml.CreateElement('Target', $project.NamespaceURI)
-    [void]$target.SetAttribute('Name', 'AddBoostTailLinkInputs')
-    [void]$target.SetAttribute('BeforeTargets', 'Link')
-
-    foreach ($case in @(
-        @{ Platform = 'Win32'; Arch = 'x32' },
-        @{ Platform = 'x64'; Arch = 'x64' }
-    )) {
-        $itemGroup = $ProjectXml.CreateElement('ItemGroup', $project.NamespaceURI)
-        [void]$itemGroup.SetAttribute('Condition', "'`$(Configuration)|`$(Platform)'=='Release|$($case.Platform)'")
-
-        foreach ($library in Get-BoostLinkLibraries $case.Arch) {
-            $linkItem = $ProjectXml.CreateElement('Link', $project.NamespaceURI)
-            [void]$linkItem.SetAttribute('Include', "`$(BOOST_ROOT)\stage\lib\$library")
-            [void]$itemGroup.AppendChild($linkItem)
-        }
-
-        [void]$target.AppendChild($itemGroup)
-    }
-
-    [void]$project.AppendChild($target)
-}
-
 function Add-BoostLinkLibrariesToProject {
     param([Parameter(Mandatory)][string]$ProjectPath)
 
@@ -398,16 +433,22 @@ function Add-BoostLinkLibrariesToProject {
             [void]$link.AppendChild($additional)
         }
 
-        $updated = Remove-BoostLibrariesFromDependencies `
+        $cleanDependencies = Remove-BoostLibrariesFromDependencies `
             -AdditionalDependencies $additional.InnerText
+        $updated = Add-BoostLibrariesToDependencies `
+            -AdditionalDependencies $cleanDependencies `
+            -Libraries (Get-BoostLinkLibraries $arch)
         if ($additional.InnerText -ne $updated) {
             $additional.InnerText = $updated
             $changed = $true
         }
     }
 
-    Add-BoostTailLinkInputsToProject -ProjectXml $xml -NamespaceManager $ns
-    $changed = $true
+    $tailTarget = $xml.SelectSingleNode("//msb:Target[@Name='AddBoostTailLinkInputs']", $ns)
+    if ($tailTarget) {
+        [void]$xml.DocumentElement.RemoveChild($tailTarget)
+        $changed = $true
+    }
 
     if ($changed) {
         $settings = [System.Xml.XmlWriterSettings]::new()
@@ -425,4 +466,4 @@ function Add-BoostLinkLibrariesToProject {
     return $changed
 }
 
-Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-BoostLinkLibraries, Get-BoostBuildArchitectures, Get-BoostBjamOptions, Get-ExpectedBoostLibraries, Get-MissingBoostLibraries, New-BoostProjectConfig, Select-ClPath, Add-BoostLinkLibrariesToProject
+Export-ModuleMember -Function ConvertTo-VcvarsVersion, New-VsDevCmdCall, Get-DefaultToolsetForVsDevCmd, Get-BoostLinkLibraries, Get-BoostBuildArchitectures, Get-BoostBjamOptions, Get-ExpectedBoostLibraries, Get-ExpectedBoostMachine, Test-DumpbinHeadersMatchMachine, Get-MissingBoostLibraries, Get-InvalidBoostLibraries, New-BoostProjectConfig, Select-ClPath, Add-BoostLinkLibrariesToProject

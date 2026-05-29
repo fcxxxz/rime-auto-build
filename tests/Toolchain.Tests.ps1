@@ -86,6 +86,64 @@ Describe 'Get-MissingBoostLibraries' {
   }
 }
 
+Describe 'Get-InvalidBoostLibraries' {
+  It 'reports Boost libraries whose archive machine type does not match the library architecture' {
+    $root = Join-Path $TestDrive 'boost_arch_probe'
+    $stageLib = Join-Path $root 'stage\lib'
+    New-Item -ItemType Directory -Path $stageLib -Force | Out-Null
+
+    foreach ($name in Get-ExpectedBoostLibraries) {
+      New-Item -ItemType File -Path (Join-Path $stageLib $name) | Out-Null
+    }
+
+    $invalid = Get-InvalidBoostLibraries -BoostRoot $root -ReadHeaders {
+      param($Path)
+      if ($Path -like '*-x64-*') {
+        return @('             14C machine (x86)')
+      }
+      return @('             14C machine (x86)')
+    }
+
+    $invalid | Should -Contain 'libboost_thread-vc143-mt-s-x64-1_84.lib'
+    $invalid | Should -Contain 'libboost_serialization-vc143-mt-s-x64-1_84.lib'
+    $invalid | Should -Not -Contain 'libboost_thread-vc143-mt-s-x32-1_84.lib'
+    $invalid.Count | Should -Be 10
+  }
+
+  It 'accepts Boost libraries whose archive machine type matches the library architecture' {
+    $root = Join-Path $TestDrive 'valid_boost_arch_probe'
+    $stageLib = Join-Path $root 'stage\lib'
+    New-Item -ItemType Directory -Path $stageLib -Force | Out-Null
+
+    foreach ($name in Get-ExpectedBoostLibraries) {
+      New-Item -ItemType File -Path (Join-Path $stageLib $name) | Out-Null
+    }
+
+    $invalid = Get-InvalidBoostLibraries -BoostRoot $root -ReadHeaders {
+      param($Path)
+      if ($Path -like '*-x64-*') {
+        return @('            8664 machine (x64)')
+      }
+      return @('             14C machine (x86)')
+    }
+
+    $invalid | Should -BeNullOrEmpty
+  }
+
+  It 'treats empty dumpbin output as an invalid Boost library' {
+    $root = Join-Path $TestDrive 'empty_boost_arch_probe'
+    $stageLib = Join-Path $root 'stage\lib'
+    New-Item -ItemType Directory -Path $stageLib -Force | Out-Null
+    New-Item -ItemType File -Path (Join-Path $stageLib 'libboost_thread-vc143-mt-s-x64-1_84.lib') | Out-Null
+
+    $invalid = Get-InvalidBoostLibraries -BoostRoot $root -ReadHeaders {
+      return @('')
+    }
+
+    $invalid | Should -Be @('libboost_thread-vc143-mt-s-x64-1_84.lib')
+  }
+}
+
 Describe 'Get-BoostLinkLibraries' {
   It 'returns arch-specific Boost release libraries needed by Weasel link consumers' {
     Get-BoostLinkLibraries 'x32' | Should -Be @(
@@ -129,7 +187,7 @@ Describe 'Get-BoostBjamOptions' {
 }
 
 Describe 'Add-BoostLinkLibrariesToProject' {
-  It 'adds Boost libraries as tail link inputs after project libraries' {
+  It 'adds Boost libraries to release link dependencies and keeps the patch idempotent' {
     $projectPath = Join-Path $TestDrive 'WeaselServer.vcxproj'
     [System.IO.File]::WriteAllText(
       $projectPath,
@@ -169,7 +227,10 @@ Describe 'Add-BoostLinkLibrariesToProject' {
       @{ Platform = 'x64'; Arch = 'x64'; Existing = 'imm32.lib' }
     )) {
       $group = $xml.SelectSingleNode("//msb:ItemDefinitionGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Release|$($case.Platform)`'`"]", $ns)
-      $expectedDependencies = @(($case.Existing, '%(AdditionalDependencies)') -join ';')
+      $expectedDependencies = @($case.Existing)
+      $expectedDependencies += Get-BoostLinkLibraries $case.Arch
+      $expectedDependencies += '%(AdditionalDependencies)'
+      $expectedDependencies = $expectedDependencies -join ';'
       $expectedOptions = '%(AdditionalOptions)'
       if ($case.Platform -eq 'x64') {
         $expectedOptions = "/DEBUG $expectedOptions"
@@ -177,27 +238,11 @@ Describe 'Add-BoostLinkLibrariesToProject' {
 
       $group.Link.AdditionalDependencies | Should -Be $expectedDependencies
       $group.Link.AdditionalOptions | Should -Be $expectedOptions
-      $group.Link.AdditionalDependencies | Should -Not -Match 'libboost_'
       $group.Link.AdditionalOptions | Should -Not -Match 'libboost_'
     }
 
     $tailTarget = $xml.SelectSingleNode("//msb:Target[@Name='AddBoostTailLinkInputs']", $ns)
-    $tailTarget | Should -Not -BeNullOrEmpty
-    $tailTarget.GetAttribute('BeforeTargets') | Should -Be 'Link'
-
-    foreach ($case in @(
-      @{ Platform = 'Win32'; Arch = 'x32' },
-      @{ Platform = 'x64'; Arch = 'x64' }
-    )) {
-      $items = @($tailTarget.SelectNodes(
-          "msb:ItemGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Release|$($case.Platform)`'`"]/msb:Link",
-          $ns
-        ))
-      $items.Count | Should -Be 10
-      $items[0].GetAttribute('Include') | Should -Be "`$(BOOST_ROOT)\stage\lib\libboost_filesystem-vc143-mt-s-$($case.Arch)-1_84.lib"
-      $items[-1].GetAttribute('Include') | Should -Be "`$(BOOST_ROOT)\stage\lib\libboost_atomic-vc143-mt-s-$($case.Arch)-1_84.lib"
-      (@($items | Where-Object { $_.GetAttribute('Include') -like '*libboost_thread*' })).Count | Should -Be 1
-    }
+    $tailTarget | Should -BeNullOrEmpty
 
     $debugGroup = $xml.SelectSingleNode("//msb:ItemDefinitionGroup[@Condition=`"`'`$(Configuration)|`$(Platform)`'==`'Debug|Win32`'`"]", $ns)
     $debugGroup.Link.AdditionalDependencies | Should -Be 'debug.lib;%(AdditionalDependencies)'

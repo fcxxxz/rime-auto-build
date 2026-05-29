@@ -343,4 +343,37 @@ Describe 'pack script Boost preparation' {
     $content | Should -Match 'Get-BoostBjamOptions'
     $content | Should -Not -Match '(?s)\$boostVsDevCmdCall\s*=\s*New-VsDevCmdCall.*?-Architecture x86\s*`.*?-HostArchitecture x86'
   }
+
+  It 'keeps librime release downloads in a stable cache outside the mirrored work tree' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+    $stableCachePattern = [regex]::Escape(".pack-rime-cache\downloads")
+
+    $content | Should -Match $stableCachePattern
+    $content | Should -Match '\$asset\.size'
+    $content | Should -Match 'incomplete librime asset'
+  }
+
+  It 'preserves each upstream WeaselServer shutdown command before taskkill fallback' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match '!macro PACK_PS1_STOP_WEASEL_SERVER SERVER_EXE SERVER_COMMAND'
+    $content | Should -Match 'Exec ''''"\$\{SERVER_EXE\}" \$\{SERVER_COMMAND\}'''''
+    $content | Should -Match 'taskkill /IM WeaselServer\.exe /F /T'
+    $content | Should -Not -Match 'Exec ''''\$\{SERVER_EXE\}'''' /stop'
+  }
+
+  It 'clears stale Weasel manual-exit state after installer-driven shutdown' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match ([regex]::Escape('Delete "$TEMP\rime.weasel\weasel-service-manual-exit.flag"'))
+  }
+
+  It 'refreshes text services after new TSF registration before deploying user data' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match 'Add-PackNsiPostInstallTextServicesRefreshPatch'
+    $content | Should -Match 'Add-PackNsiUnregisterTextServicesRefreshPatch'
+    $content | Should -Match ([regex]::Escape('$sawPostInstallWeaselSetup = $true'))
+    $content | Should -Match ([regex]::Escape('$line.Trim() -eq ''!insertmacro PACK_PS1_REFRESH_TEXT_SERVICES'''))
+  }
 }

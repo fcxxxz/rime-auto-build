@@ -5,6 +5,7 @@ Import-Module (Join-Path $ScriptDir 'scripts\lib\Toolchain.psm1') -Force
 Import-Module (Join-Path $ScriptDir 'scripts\lib\CustomData.psm1') -Force
 Import-Module (Join-Path $ScriptDir 'scripts\lib\LibrimeValidation.psm1') -Force
 Import-Module (Join-Path $ScriptDir 'scripts\lib\NsiPatch.psm1') -Force
+Import-Module (Join-Path $ScriptDir 'scripts\lib\WeaselSourcePatch.psm1') -Force
 
 # ---------------------------------------------------------------------------
 # User-tweakable paths and options.
@@ -327,6 +328,11 @@ function Invoke-GetRimePrebuiltWithGitHubCli([string]$WeaselRoot) {
       New-Item -ItemType Directory -Path $path -Force | Out-Null
     }
   }
+  $stableDownloadRoot = Join-Path $ScriptDir '.pack-rime-cache\downloads'
+  Require-PathUnderScriptDir $stableDownloadRoot 'stable librime release download cache'
+  if (-not (Test-Path -LiteralPath $stableDownloadRoot)) {
+    New-Item -ItemType Directory -Path $stableDownloadRoot -Force | Out-Null
+  }
 
   Write-Host 'Downloading prebuilt librime with GitHub CLI (authenticated fallback)...'
   $releaseJson = & $gh.Source release view --repo rime/librime --json tagName,assets
@@ -345,11 +351,20 @@ function Invoke-GetRimePrebuiltWithGitHubCli([string]$WeaselRoot) {
 
   foreach ($asset in $assets) {
     $archivePath = Join-Path $downloadRoot $asset.name
-    if (-not (Test-Path -LiteralPath $archivePath)) {
+    $stableArchivePath = Join-Path $stableDownloadRoot $asset.name
+    if ((Test-Path -LiteralPath $stableArchivePath) -and ((Get-Item -LiteralPath $stableArchivePath).Length -eq $asset.size)) {
+      Copy-Item -LiteralPath $stableArchivePath -Destination $archivePath -Force
+    }
+    if ((-not (Test-Path -LiteralPath $archivePath)) -or ((Get-Item -LiteralPath $archivePath).Length -ne $asset.size)) {
+      Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue
       & $gh.Source release download $release.tagName --repo rime/librime --pattern $asset.name --dir $downloadRoot --clobber
       if ($LASTEXITCODE -ne 0) {
         throw "gh release download failed for librime asset: $($asset.name)"
       }
+      if ((Get-Item -LiteralPath $archivePath).Length -ne $asset.size) {
+        throw "gh release download produced incomplete librime asset: $($asset.name)"
+      }
+      Copy-Item -LiteralPath $archivePath -Destination $stableArchivePath -Force
     }
     $assetExtractRoot = Join-Path $extractRoot ([System.IO.Path]::GetFileNameWithoutExtension($asset.name))
     Expand-PackSevenZipArchive $archivePath $assetExtractRoot $extractor $WeaselRoot
@@ -421,41 +436,6 @@ function Ensure-OutputInstallerSupportFiles([string]$WeaselRoot) {
   $plumRimeInstall = Join-Path $WeaselRoot 'plum\rime-install.bat'
   Require-Path $plumRimeInstall 'plum\rime-install.bat (in isolated work tree)'
   Copy-Item -LiteralPath $plumRimeInstall -Destination $rimeInstall -Force
-}
-
-function Remove-PackNsiPatches([string[]]$Lines) {
-  $clean = New-Object System.Collections.Generic.List[string]
-  $insidePackBlock = $false
-
-  foreach ($line in $Lines) {
-    if ($line -match '^\s*;\s+---PACK_PS1_[A-Z0-9_]+---\s*$') {
-      $insidePackBlock = $true
-      continue
-    }
-    if ($line -match '^\s*;\s+---END_PACK_PS1_[A-Z0-9_]+---\s*$') {
-      $insidePackBlock = $false
-      continue
-    }
-    if ($insidePackBlock) {
-      continue
-    }
-
-    if ($line.Trim() -eq '!insertmacro PACK_PS1_STOP_WEASEL_SERVER $R1\WeaselServer.exe') {
-      $clean.Add('  ExecWait ''"$R1\WeaselServer.exe" /stop''')
-      continue
-    }
-    if ($line.Trim() -eq '!insertmacro PACK_PS1_STOP_WEASEL_SERVER $INSTDIR\WeaselServer.exe') {
-      $clean.Add('  ExecWait ''"$INSTDIR\WeaselServer.exe" /stop''')
-      continue
-    }
-    if ($line.Trim() -eq '!insertmacro PACK_PS1_REFRESH_TEXT_SERVICES') {
-      continue
-    }
-
-    $clean.Add($line)
-  }
-
-  return [string[]]$clean
 }
 
 function Require-Command([string]$Name, [string]$Hint) {
@@ -788,7 +768,31 @@ if (-not (Test-Path -LiteralPath $plumMarker)) {
 }
 Require-Path $plumMarker 'plum\rime-install.bat (in isolated work tree)'
 
+$boostHeaderReader = {
+  param($LibraryPath)
+
+  & cmd.exe /d /s /c "$VsDevCmdCall >nul && dumpbin /headers `"$LibraryPath`""
+}
+
 $missingBoost = Get-MissingBoostLibraries $BoostRoot
+$invalidBoost = @(Get-InvalidBoostLibraries -BoostRoot $BoostRoot -ReadHeaders $boostHeaderReader)
+if ($invalidBoost.Count -gt 0) {
+  Write-Host 'Removing Boost static libraries with the wrong COFF machine type...'
+  foreach ($library in $invalidBoost) {
+    $libraryPath = Join-Path $BoostRoot "stage\lib\$library"
+    Write-Host "  invalid: $library"
+    Remove-Item -LiteralPath $libraryPath -Force
+  }
+  $boostBuildCache = Join-Path $BoostRoot 'bin.v2'
+  if (Test-Path -LiteralPath $boostBuildCache) {
+    if (-not (Test-PathUnderRoot $boostBuildCache $BoostRoot)) {
+      throw "Refusing to remove Boost.Build cache outside Boost root: $boostBuildCache"
+    }
+    Write-Host "  removing stale Boost.Build cache: $boostBuildCache"
+    Remove-Item -LiteralPath $boostBuildCache -Recurse -Force
+  }
+  $missingBoost = Get-MissingBoostLibraries $BoostRoot
+}
 if ($missingBoost.Count -gt 0) {
   Write-Host 'Preparing Boost static libraries...'
   Write-Host "  missing: $($missingBoost -join ', ')"
@@ -850,6 +854,15 @@ Expected Boost 1.84 x64 static libraries under:
 
 Missing:
   $($missingBoost -join "`n  ")
+"@
+  }
+  $invalidBoost = @(Get-InvalidBoostLibraries -BoostRoot $BoostRoot -ReadHeaders $boostHeaderReader)
+  if ($invalidBoost.Count -gt 0) {
+    throw @"
+Boost static library preparation produced wrong-machine libraries.
+
+Invalid:
+  $($invalidBoost -join "`n  ")
 "@
   }
   Write-Host ''
@@ -955,6 +968,14 @@ foreach ($relativeProject in @(
   } else {
     Write-Host "  already patched $relativeProject"
   }
+}
+Write-Host ''
+
+Write-Host 'Patching Weasel IPC archive compatibility...'
+if (Repair-WeaselIpcArchiveCompatibility $WeaselRepo) {
+  Write-Host '  removed non-versioned fork-only IPC archive fields'
+} else {
+  Write-Host '  already compatible'
 }
 Write-Host ''
 
@@ -1137,6 +1158,9 @@ Write-Host "  merged custom color schemes into output\data\weasel.yaml for the i
 $installNsi = Join-Path $WeaselRepo 'output\install.nsi'
 $nsiLines = [System.IO.File]::ReadAllLines($installNsi)
 $nsiLines = Remove-PackNsiPatches $nsiLines
+$nsiLines = Add-PackNsiOverwriteConfirmationPatch $nsiLines
+$nsiLines = Add-PackNsiPostInstallTextServicesRefreshPatch $nsiLines
+$nsiLines = Add-PackNsiUnregisterTextServicesRefreshPatch $nsiLines
 
 $subdirs = Get-ChildItem -LiteralPath $outputData -Directory |
   Where-Object { $_.Name -notin @('opencc','preview') } |
@@ -1172,8 +1196,9 @@ if ($openccExtras) {
 
 # Block C: deploy all custom-data files to the Rime user directory selected by
 # WeaselSetup. This must run after WeaselSetup writes
-# HKCU\Software\Rime\Weasel\RimeUserDir and before WeaselDeployer /install opens
-# the schema/theme dialogs.
+# HKCU\Software\Rime\Weasel\RimeUserDir and after the post-registration text
+# services refresh, but before WeaselDeployer /install opens the schema/theme
+# dialogs.
 $userCustoms = @($customRelList | Sort-Object)
 $deployInsertion = New-Object System.Collections.Generic.List[string]
 if ($userCustoms) {
@@ -1236,20 +1261,21 @@ $skipRestoreLabelInsertion = @(
 )
 
 # Block Q: make uninstall and upgrade release user-profile files reliably.
-# WeaselServer.exe can keep librime userdb/build files open after /stop returns.
-# Send the maintenance-stop asynchronously so a stuck old server/IPC path cannot
-# hang the installer before its UI appears, then remove any residual process by
-# image name. Use /stop, not /quit; /quit writes the manual-exit flag and
-# suppresses post-install auto-start.
+# WeaselServer.exe can keep librime userdb/build files open after the normal
+# shutdown command returns. Preserve the upstream command (/quit or /stop), then
+# clear stale manual-exit state left by newer Weasel variants and remove any
+# residual process by image name.
 $stopServerMacroInsertion = @(
   '; ---PACK_PS1_STOP_WEASEL_SERVER_MACRO---',
-  '!macro PACK_PS1_STOP_WEASEL_SERVER SERVER_EXE',
+  '!macro PACK_PS1_STOP_WEASEL_SERVER SERVER_EXE SERVER_COMMAND',
   '  IfFileExists "${SERVER_EXE}" 0 +2',
-  '  Exec ''"${SERVER_EXE}" /stop''',
+  '  Exec ''"${SERVER_EXE}" ${SERVER_COMMAND}''',
   '  Sleep 1500',
+  '  Delete "$TEMP\rime.weasel\weasel-service-manual-exit.flag"',
   '  nsExec::ExecToStack ''taskkill /IM WeaselServer.exe /F /T''',
   '  Pop $0',
   '  Pop $1',
+  '  Delete "$TEMP\rime.weasel\weasel-service-manual-exit.flag"',
   '  Sleep 500',
   '!macroend',
   '; ---END_PACK_PS1_STOP_WEASEL_SERVER_MACRO---'
@@ -1274,8 +1300,6 @@ $textServicesRefreshMacroInsertion = @(
   '; ---END_PACK_PS1_REFRESH_TEXT_SERVICES_MACRO---'
 )
 
-$textServicesRefreshAnchors = @('$R1\WeaselSetup.exe', '$INSTDIR\WeaselSetup.exe')
-
 $patched = New-Object System.Collections.Generic.List[string]
 $inserted1 = $false  # top-level lua and custom-data subdirs
 $inserted2 = $false  # opencc extras
@@ -1286,7 +1310,7 @@ $inserted6 = $false  # skip-restore label
 $inserted7 = $false  # stop-server macro
 $inserted8 = $false  # text-services refresh macro
 $stopServerReplacementCount = 0
-$textServicesRefreshCount = 0
+$sawPostInstallWeaselSetup = $false
 foreach ($line in $nsiLines) {
   if (-not $inserted7 -and $line -match '^Function\s+\.onInit\b') {
     foreach ($ins in $stopServerMacroInsertion) { $patched.Add($ins) }
@@ -1310,14 +1334,11 @@ foreach ($line in $nsiLines) {
     continue
   }
   $patched.Add($line)
-  foreach ($setupExe in $textServicesRefreshAnchors) {
-    $unregisterLine = "ExecWait '`"$setupExe`" /u'"
-    if ($line.Trim() -eq $unregisterLine) {
-      $patched.Add('  !insertmacro PACK_PS1_REFRESH_TEXT_SERVICES')
-      $textServicesRefreshCount++
-      break
-    }
+
+  if ($line.Trim() -like 'ExecWait ''"$INSTDIR\WeaselSetup.exe" $R2''*') {
+    $sawPostInstallWeaselSetup = $true
   }
+
   # Skip-restore label: inject right AFTER the `RMDir /r $TEMP\weasel-backup` line.
   if ($inserted5 -and -not $inserted6 -and $line -match 'RMDir\s+/r\s+\$TEMP\\weasel-backup') {
     foreach ($ins in $skipRestoreLabelInsertion) { $patched.Add($ins) }
@@ -1331,7 +1352,7 @@ foreach ($line in $nsiLines) {
     foreach ($ins in $openccInsertion) { $patched.Add($ins) }
     $inserted2 = $true
   }
-  if (-not $inserted3 -and $userCustoms -and $line.Contains('WeaselSetup.exe') -and $line.Contains('$R2')) {
+  if (-not $inserted3 -and $userCustoms -and $sawPostInstallWeaselSetup -and $line.Trim() -eq '!insertmacro PACK_PS1_REFRESH_TEXT_SERVICES') {
     foreach ($ins in $deployInsertion) { $patched.Add($ins) }
     $inserted3 = $true
   }
@@ -1345,7 +1366,6 @@ if (-not $inserted6)                    { throw "install.nsi skip-restore label 
 if (-not $inserted7)                    { throw "install.nsi stop-server macro anchor (Function .onInit) not found" }
 if (-not $inserted8)                    { throw "install.nsi text-services refresh macro anchor (Function .onInit) not found" }
 if ($stopServerReplacementCount -lt 3)  { throw "install.nsi stop-server replacement anchors not found" }
-if ($textServicesRefreshCount -lt 2)    { throw "install.nsi text-services refresh anchors not found" }
 [System.IO.File]::WriteAllLines($installNsi, $patched, [System.Text.UTF8Encoding]::new($true))
 $msg = @()
 if ($rootLuaFiles) { $msg += 'root lua: *.lua' }
@@ -1354,8 +1374,9 @@ if ($openccExtras) { $msg += ("opencc extras: *.{0}" -f ($openccExtras -join ', 
 if ($userCustoms)  { $msg += ("user deploy: {0}" -f ($userCustoms -join ', ')) }
 $msg += 'reboot default: later'
 $msg += 'skip old data restore'
-$msg += 'stop residual WeaselServer on uninstall'
-$msg += 'refresh text services after uninstall'
+$msg += 'confirm overwrite before uninstall prompt'
+$msg += 'stop residual WeaselServer and clear manual-exit flag on uninstall'
+$msg += 'refresh text services after unregister/register'
 Write-Host ("  patched install.nsi - " + ($msg -join '; '))
 Write-Host ''
 
