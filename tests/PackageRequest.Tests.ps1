@@ -42,7 +42,7 @@ rime
     $request.weasel_name | Should -Be 'rime'
   }
 
-  It 'defaults ref to main when the field is blank' {
+  It 'leaves ref blank when the field is blank so the workflow can use the repository default branch' {
     $body = @'
 ### Data short name
 
@@ -66,7 +66,65 @@ qing
 
     $request = ConvertFrom-PackageRequestIssueBody -Body $body
 
-    $request.data_ref | Should -Be 'main'
+    $request.data_ref | Should -Be ''
+  }
+
+  It 'parses the simplified Chinese issue form and derives names from the repository' {
+    $body = @'
+### 公开 GitHub 仓库
+
+https://github.com/a810439322/rime-tiger
+
+### 分支、标签或 commit
+
+_No response_
+
+### 小狼毫版本
+
+晴版小狼毫（qing）
+
+### 确认
+
+- [X] 我确认这是公开 Rime 方案仓库，并知道安装包会作为临时 GitHub Actions Artifact 上传。
+'@
+
+    $request = ConvertFrom-PackageRequestIssueBody -Body $body
+
+    $request.data_name | Should -Be 'tiger'
+    $request.data_display | Should -Be 'tiger'
+    $request.data_url | Should -Be 'https://github.com/a810439322/rime-tiger.git'
+    $request.data_ref | Should -Be ''
+    $request.weasel_name | Should -Be 'qing'
+  }
+
+  It 'falls back to derived names when a legacy issue used an invalid short name' {
+    $body = @'
+### Data short name
+
+1
+
+### Display name
+
+1
+
+### Repository
+
+https://github.com/a810439322/rime-tiger
+
+### Ref
+
+_No response_
+
+### Weasel
+
+qing
+'@
+
+    $request = ConvertFrom-PackageRequestIssueBody -Body $body
+
+    $request.data_name | Should -Be 'tiger'
+    $request.data_display | Should -Be 'tiger'
+    $request.data_ref | Should -Be ''
   }
 
   It 'throws when a required field is missing' {
@@ -188,7 +246,7 @@ excludes: []
       Should -Be '0123456789abcdef0123456789abcdef01234567'
   }
 
-  It 'rejects duplicate configured data names' {
+  It 'allows configured data names for one-off package requests' {
     $request = [pscustomobject]@{
       data_name = 'tiger'
       data_display = '虎码'
@@ -198,7 +256,7 @@ excludes: []
     }
 
     { Resolve-PackageRequest -Request $request -Config $Config } |
-      Should -Throw -ExpectedMessage '*already exists in builds.yaml*'
+      Should -Not -Throw
   }
 
   It 'rejects unknown or multi-selected weasel values' {
@@ -213,6 +271,22 @@ excludes: []
       Should -Throw -ExpectedMessage '*unknown weasel*'
     { Resolve-PackageRequest -Request ([pscustomobject]($base + @{ weasel_name = 'rime, qing' })) -Config $Config } |
       Should -Throw -ExpectedMessage '*select exactly one weasel*'
+  }
+
+  It 'does not infer a weasel from mixed free-form text' {
+    $body = @'
+### 公开 GitHub 仓库
+
+https://github.com/example/rime-sample
+
+### 小狼毫版本
+
+rime qing
+'@
+
+    $request = ConvertFrom-PackageRequestIssueBody -Body $body
+
+    $request.weasel_name | Should -Be 'rime qing'
   }
 }
 
@@ -319,5 +393,12 @@ rime
     }
 
     Get-Content -LiteralPath $outputPath -Raw | Should -Match 'valid=false'
+  }
+
+  It 'validate-package-ref.ps1 rejects option-like or shell-like refs' {
+    { & (Join-Path $PSScriptRoot '..\scripts\validate-package-ref.ps1') -Ref '--upload-pack=bad' } |
+      Should -Throw -ExpectedMessage '*data_ref contains unsupported characters*'
+    { & (Join-Path $PSScriptRoot '..\scripts\validate-package-ref.ps1') -Ref 'main$(whoami)' } |
+      Should -Throw -ExpectedMessage '*data_ref contains unsupported characters*'
   }
 }

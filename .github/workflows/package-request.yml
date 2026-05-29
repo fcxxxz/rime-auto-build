@@ -4,6 +4,7 @@ on:
   issues:
     types:
       - opened
+      - labeled
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   validate:
-    if: contains(github.event.issue.labels.*.name, 'package request')
+    if: ${{ startsWith(github.event.issue.title, 'Package: ') && ((github.event.action == 'opened' && (contains(github.event.issue.body, '### 公开 GitHub 仓库') || contains(github.event.issue.body, '### Repository'))) || (github.event.action == 'labeled' && github.event.label.name == 'package request')) }}
     runs-on: ubuntu-latest
     outputs:
       valid: ${{ steps.prepare.outputs.valid }}
@@ -25,6 +26,7 @@ jobs:
       data_display: ${{ steps.prepare.outputs.data_display }}
       data_url: ${{ steps.prepare.outputs.data_url }}
       data_ref: ${{ steps.prepare.outputs.data_ref }}
+      data_resolved_ref: ${{ steps.repository.outputs.data_resolved_ref }}
       github_owner: ${{ steps.prepare.outputs.github_owner }}
       github_repo: ${{ steps.prepare.outputs.github_repo }}
       weasel_name: ${{ steps.prepare.outputs.weasel_name }}
@@ -48,24 +50,37 @@ jobs:
         run: ./scripts/prepare-package-request.ps1 -IssueBodyPath issue-body.md
 
       - name: Check GitHub repository visibility
+        id: repository
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_DATA_REF: ${{ steps.prepare.outputs.data_ref }}
         run: |
           repo_json=$(gh api repos/${{ steps.prepare.outputs.github_owner }}/${{ steps.prepare.outputs.github_repo }})
           private=$(echo "$repo_json" | jq -r '.private')
           archived=$(echo "$repo_json" | jq -r '.archived')
+          default_branch=$(echo "$repo_json" | jq -r '.default_branch')
           if [ "$private" != "false" ] || [ "$archived" != "false" ]; then
             echo "Repository must be public and not archived."
             exit 1
           fi
+          if [ -z "$REQUESTED_DATA_REF" ]; then
+            data_resolved_ref="$default_branch"
+          else
+            data_resolved_ref="$REQUESTED_DATA_REF"
+          fi
+          pwsh ./scripts/validate-package-ref.ps1 -Ref "$data_resolved_ref"
+          echo "data_resolved_ref=$data_resolved_ref" >> "$GITHUB_OUTPUT"
 
       - name: Check requested ref and Rime data shape
         shell: bash
+        env:
+          REQUEST_DATA_URL: ${{ steps.prepare.outputs.data_url }}
+          REQUEST_DATA_REF: ${{ steps.repository.outputs.data_resolved_ref }}
         run: |
           set -euo pipefail
           git init request-data-check
-          git -C request-data-check remote add origin "${{ steps.prepare.outputs.data_url }}"
-          git -C request-data-check fetch --depth 1 origin -- "${{ steps.prepare.outputs.data_ref }}"
+          git -C request-data-check remote add origin "$REQUEST_DATA_URL"
+          git -C request-data-check fetch --depth 1 origin -- "$REQUEST_DATA_REF"
           git -C request-data-check checkout --detach FETCH_HEAD
           pwsh ./scripts/check-rime-data-shape.ps1 -Path request-data-check
 
@@ -103,7 +118,7 @@ jobs:
       DATA_NAME: ${{ needs.validate.outputs.data_name }}
       DATA_DISPLAY: ${{ needs.validate.outputs.data_display }}
       DATA_URL: ${{ needs.validate.outputs.data_url }}
-      DATA_REF: ${{ needs.validate.outputs.data_ref }}
+      DATA_REF: ${{ needs.validate.outputs.data_resolved_ref }}
       WEASEL_NAME: ${{ needs.validate.outputs.weasel_name }}
       WEASEL_DISPLAY: ${{ needs.validate.outputs.weasel_display }}
       WEASEL_URL: ${{ needs.validate.outputs.weasel_url }}

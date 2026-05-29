@@ -1,32 +1,14 @@
-name: Package Rime Data
-description: 一次性打包一个公开 GitHub Rime 方案仓库
+name: 一次性打包 Rime 方案
+description: 填一个公开 GitHub Rime 方案仓库，机器人自动打包
 title: "Package: "
 labels:
   - package request
 body:
   - type: input
-    id: data_name
-    attributes:
-      label: Data short name
-      description: 只用小写字母、数字和短横线，2-32 个字符，会进入安装包文件名。
-      placeholder: sample-data
-    validations:
-      required: true
-
-  - type: input
-    id: data_display
-    attributes:
-      label: Display name
-      description: 显示在构建说明里的方案名。
-      placeholder: 示例方案
-    validations:
-      required: true
-
-  - type: input
     id: repository
     attributes:
-      label: Repository
-      description: 只支持公开 GitHub HTTPS 仓库。
+      label: 公开 GitHub 仓库
+      description: 填 Rime 方案仓库地址。只支持公开仓库，方案短名和显示名会自动从仓库名推导。
       placeholder: https://github.com/user/rime-data
     validations:
       required: true
@@ -34,28 +16,28 @@ body:
   - type: input
     id: ref
     attributes:
-      label: Ref
-      description: 分支、tag 或完整 40 位 commit SHA；留空时使用 main。
-      placeholder: main
+      label: 分支、标签或 commit
+      description: 可选。留空时使用这个仓库的默认分支。
+      placeholder: 留空即可
     validations:
       required: false
 
   - type: dropdown
     id: weasel
     attributes:
-      label: Weasel
-      description: 一次请求只能选择一个小狼毫版本。
+      label: 小狼毫版本
+      description: 只能选一个。
       options:
-        - rime
-        - qing
-        - fxliang
+        - 官方小狼毫（rime）
+        - 晴版小狼毫（qing）
+        - fxliang 小狼毫（fxliang）
     validations:
       required: true
 
   - type: checkboxes
     id: confirmation
     attributes:
-      label: Confirmation
+      label: 确认
       options:
-        - label: I confirm this is a public Rime data repository and understand the installer is uploaded as a temporary GitHub Actions artifact.
+        - label: 我确认这是公开 Rime 方案仓库，并知道安装包会作为临时 GitHub Actions Artifact 上传。
           required: true

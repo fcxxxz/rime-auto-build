@@ -55,22 +55,79 @@ function Get-PackageRequestGitHubRepository {
   }
 }
 
+function Get-PackageRequestDerivedDataName {
+  param([Parameter(Mandatory)][string]$RepositoryName)
+
+  $name = $RepositoryName.Trim()
+  $name = [regex]::Replace($name, '\.git$', '', 'IgnoreCase')
+  $name = $name.ToLowerInvariant()
+  $name = [regex]::Replace($name, '^(rime[-_.])', '')
+  $name = [regex]::Replace($name, '[^a-z0-9]+', '-')
+  $name = $name.Trim('-')
+
+  if ([string]::IsNullOrWhiteSpace($name)) {
+    throw "could not derive a package name from repository name: $RepositoryName"
+  }
+  if ($name.Length -gt 32) {
+    $name = $name.Substring(0, 32).Trim('-')
+  }
+  if ($name.Length -lt 2) {
+    throw "derived package name is too short: $name"
+  }
+
+  return $name
+}
+
+function Get-PackageRequestWeaselName {
+  param([AllowNull()][string]$Value)
+
+  $trimmed = if ($null -eq $Value) { '' } else { $Value.Trim() }
+  foreach ($candidate in @('rime', 'qing', 'fxliang')) {
+    $escaped = [regex]::Escape($candidate)
+    if ($trimmed -eq $candidate -or
+        $trimmed -match "(?i)^官方小狼毫[（(]$escaped[）)]$" -or
+        $trimmed -match "(?i)^晴版小狼毫[（(]$escaped[）)]$" -or
+        $trimmed -match "(?i)^fxliang 小狼毫[（(]$escaped[）)]$") {
+      return $candidate
+    }
+  }
+
+  return $trimmed
+}
+
 function ConvertFrom-PackageRequestIssueBody {
   param([Parameter(Mandatory)][string]$Body)
 
+  $dataUrl = Get-PackageRequestField -Body $Body -Names @('Repository', '仓库', '公开 GitHub 仓库')
+  if ([string]::IsNullOrWhiteSpace($dataUrl)) {
+    throw "missing required issue field(s): Repository"
+  }
+
+  $repo = Get-PackageRequestGitHubRepository $dataUrl
+  $derivedName = Get-PackageRequestDerivedDataName $repo.repo
+  $legacyDataName = Get-PackageRequestField -Body $Body -Names @('Data short name', '方案短名')
+  $legacyDisplay = Get-PackageRequestField -Body $Body -Names @('Display name', '显示名', '方案显示名')
+  $dataName = if ($legacyDataName -and $legacyDataName.Trim() -match '^(?=.{2,32}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])$') {
+    $legacyDataName.Trim()
+  } else {
+    $derivedName
+  }
+  $dataDisplay = if ($legacyDisplay -and $legacyDisplay.Trim() -notmatch '^\d+$') {
+    $legacyDisplay.Trim()
+  } else {
+    $derivedName
+  }
+
   $fields = [ordered]@{
-    data_name = Get-PackageRequestField -Body $Body -Names @('Data short name', '方案短名')
-    data_display = Get-PackageRequestField -Body $Body -Names @('Display name', '显示名')
-    data_url = Get-PackageRequestField -Body $Body -Names @('Repository', '仓库')
-    data_ref = Get-PackageRequestField -Body $Body -Names @('Ref', '分支或标签')
-    weasel_name = Get-PackageRequestField -Body $Body -Names @('Weasel', '小狼毫版本')
+    data_name = $dataName
+    data_display = $dataDisplay
+    data_url = $repo.url
+    data_ref = Get-PackageRequestField -Body $Body -Names @('Ref', '分支或标签', '分支、标签或 commit')
+    weasel_name = Get-PackageRequestWeaselName (Get-PackageRequestField -Body $Body -Names @('Weasel', '小狼毫版本'))
   }
 
   $missingFields = New-Object System.Collections.Generic.List[string]
   foreach ($entry in @(
-    @{ Key = 'data_name'; Label = 'Data short name' },
-    @{ Key = 'data_display'; Label = 'Display name' },
-    @{ Key = 'data_url'; Label = 'Repository' },
     @{ Key = 'weasel_name'; Label = 'Weasel' }
   )) {
     if ([string]::IsNullOrWhiteSpace($fields[$entry.Key])) {
@@ -81,14 +138,9 @@ function ConvertFrom-PackageRequestIssueBody {
     throw "missing required issue field(s): $($missingFields -join ', ')"
   }
 
-  if ([string]::IsNullOrWhiteSpace($fields['data_ref'])) {
-    $fields['data_ref'] = 'main'
-  }
-
   $fields['data_name'] = $fields['data_name'].Trim()
   $fields['data_display'] = $fields['data_display'].Trim()
-  $fields['data_url'] = Resolve-PackageRequestGitHubUrl $fields['data_url']
-  $fields['data_ref'] = $fields['data_ref'].Trim()
+  $fields['data_ref'] = if ($fields['data_ref']) { $fields['data_ref'].Trim() } else { '' }
   $fields['weasel_name'] = $fields['weasel_name'].Trim()
 
   return [pscustomobject]$fields
@@ -114,26 +166,20 @@ function Resolve-PackageRequest {
   }
 
   $dataRef = [string]$Request.data_ref
-  if ([string]::IsNullOrWhiteSpace($dataRef)) {
-    throw 'data_ref must not be empty'
-  }
-  if ($dataRef -notmatch '^[A-Za-z0-9._/-]{1,128}$' -or
+  if (-not [string]::IsNullOrWhiteSpace($dataRef) -and
+      ($dataRef -notmatch '^[A-Za-z0-9._/-]{1,128}$' -or
       $dataRef.Contains('..') -or
       $dataRef.StartsWith('-') -or
       $dataRef.StartsWith('/') -or
       $dataRef.EndsWith('/') -or
-      $dataRef.Contains('//')) {
+      $dataRef.Contains('//'))) {
     throw "data_ref contains unsupported characters: $dataRef"
   }
-  if ($dataRef -match '^[0-9A-Fa-f]{4,39}$') {
+  if (-not [string]::IsNullOrWhiteSpace($dataRef) -and $dataRef -match '^[0-9A-Fa-f]{4,39}$') {
     throw 'commit refs must be full 40-character SHA values'
   }
 
   $repo = Get-PackageRequestGitHubRepository ([string]$Request.data_url)
-  $duplicate = @($Config.datas | Where-Object { $_.name -eq $dataName })
-  if ($duplicate.Count -gt 0) {
-    throw "data_name '$dataName' already exists in builds.yaml"
-  }
 
   $weaselName = ([string]$Request.weasel_name).Trim()
   if ($weaselName -match '[,\r\n/]') {
@@ -180,5 +226,6 @@ Export-ModuleMember -Function `
   ConvertFrom-PackageRequestIssueBody, `
   Resolve-PackageRequestGitHubUrl, `
   Get-PackageRequestGitHubRepository, `
+  Get-PackageRequestDerivedDataName, `
   Resolve-PackageRequest, `
   Test-PackageRequestRimeDataShape

@@ -30,6 +30,8 @@ Describe 'README update workflow explanation' {
     $content | Should -Match '## 一次性打包新的方案'
     $content | Should -Match '\[提交一次性打包 Issue\]\(https://github\.com/a810439322/rime-auto-build/issues/new\?template=package-data\.yml\)'
     $content | Should -Match '只支持公开 GitHub HTTPS 仓库'
+    $content | Should -Match '方案短名和显示名会自动从仓库名推导'
+    $content | Should -Match '不填就用仓库默认分支'
     $content | Should -Match '一次只能选择一个小狼毫版本'
     $content | Should -Match 'package-request-\{issue_number\}'
     $content | Should -Match 'Artifacts'

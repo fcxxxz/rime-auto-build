@@ -18,15 +18,15 @@ Describe 'package request issue template' {
     $content = Get-Content -LiteralPath $PackageRequestIssueTemplatePath -Raw
 
     $content | Should -Match '(?s)labels:\s+\-\s+package request'
-    $content | Should -Match 'id:\s*data_name'
-    $content | Should -Match 'id:\s*data_display'
     $content | Should -Match 'id:\s*repository'
     $content | Should -Match 'id:\s*ref'
     $content | Should -Match 'id:\s*weasel'
+    $content | Should -Not -Match 'id:\s*data_name'
+    $content | Should -Not -Match 'id:\s*data_display'
     $content | Should -Match 'type:\s*dropdown'
-    $content | Should -Match 'rime'
-    $content | Should -Match 'qing'
-    $content | Should -Match 'fxliang'
+    $content | Should -Match '官方小狼毫（rime）'
+    $content | Should -Match '晴版小狼毫（qing）'
+    $content | Should -Match 'fxliang 小狼毫（fxliang）'
     $content | Should -Match 'https://github\.com/'
   }
 }
@@ -37,8 +37,13 @@ Describe 'package request workflow' {
     $content = Get-Content -LiteralPath $PackageRequestWorkflowPath -Raw
 
     $content | Should -Match '(?m)^on:\s*$'
-    $content | Should -Match '(?s)issues:\s+types:\s+\-\s+opened'
-    $content | Should -Match "contains\(github\.event\.issue\.labels\.\*\.name, 'package request'\)"
+    $content | Should -Match '(?s)issues:\s+types:\s+\-\s+opened\s+\-\s+labeled'
+    $content | Should -Match "github\.event\.label\.name == 'package request'"
+    $content | Should -Match "github\.event\.action == 'opened'"
+    $content | Should -Match "github\.event\.action == 'labeled'"
+    $content | Should -Match "startsWith\(github\.event\.issue\.title, 'Package: '\)"
+    $content | Should -Match "contains\(github\.event\.issue\.body, '### 公开 GitHub 仓库'\)"
+    $content | Should -Match "contains\(github\.event\.issue\.body, '### Repository'\)"
     $content | Should -Match 'package-request-\$\{\{ github\.event\.issue\.number \}\}'
   }
 
@@ -58,11 +63,18 @@ Describe 'package request workflow' {
     $content | Should -Match '\$env:GITHUB_EVENT_PATH'
     $content | Should -Match '\./scripts/prepare-package-request\.ps1'
     $content | Should -Match 'gh api repos/\$\{\{ steps\.prepare\.outputs\.github_owner \}\}/\$\{\{ steps\.prepare\.outputs\.github_repo \}\}'
+    $content | Should -Match 'default_branch'
+    $content | Should -Match 'data_resolved_ref'
+    $content | Should -Match '\./scripts/validate-package-ref\.ps1'
+    $content | Should -Match 'REQUESTED_DATA_REF:\s*\$\{\{ steps\.prepare\.outputs\.data_ref \}\}'
     $content | Should -Match 'git init request-data-check'
-    $content | Should -Match 'git -C request-data-check fetch --depth 1 origin -- "\$\{\{ steps\.prepare\.outputs\.data_ref \}\}"'
+    $content | Should -Match 'REQUEST_DATA_URL:\s*\$\{\{ steps\.prepare\.outputs\.data_url \}\}'
+    $content | Should -Match 'REQUEST_DATA_REF:\s*\$\{\{ steps\.repository\.outputs\.data_resolved_ref \}\}'
+    $content | Should -Match 'git -C request-data-check remote add origin "\$REQUEST_DATA_URL"'
+    $content | Should -Match 'git -C request-data-check fetch --depth 1 origin -- "\$REQUEST_DATA_REF"'
     $content | Should -Match 'pwsh \./scripts/check-rime-data-shape\.ps1 -Path request-data-check'
     $content | Should -Match 'if:\s*\$\{\{ needs\.validate\.outputs\.valid == ''true'' \}\}'
-    $content | Should -Not -Match 'github\.event\.issue\.body'
+    $content | Should -Not -Match '\$\{\{\s*github\.event\.issue\.body\s*\}\}'
   }
 
   It 'builds a single requested data/weasel pair without changing long-term config or releases' {
@@ -70,6 +82,7 @@ Describe 'package request workflow' {
 
     $content | Should -Match 'Clone weasel \(recursive\)'
     $content | Should -Match 'Clone data -> custom-data'
+    $content | Should -Match 'DATA_REF:\s*\$\{\{ needs\.validate\.outputs\.data_resolved_ref \}\}'
     $content | Should -Match 'git -C custom-data fetch --depth 1 origin -- \$env:DATA_REF'
     $content | Should -Match 'git -C custom-data checkout --detach FETCH_HEAD'
     $content | Should -Match '\./scripts/check-rime-data-shape\.ps1 -Path custom-data'
