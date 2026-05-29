@@ -37,10 +37,11 @@ Describe 'package request workflow' {
     $content = Get-Content -LiteralPath $PackageRequestWorkflowPath -Raw
 
     $content | Should -Match '(?m)^on:\s*$'
-    $content | Should -Match '(?s)issues:\s+types:\s+\-\s+opened\s+\-\s+labeled'
-    $content | Should -Match "github\.event\.label\.name == 'package request'"
+    $content | Should -Match '(?s)issues:\s+types:\s+\-\s+opened'
+    $content | Should -Not -Match '(?m)^\s*-\s+labeled\s*$'
+    $content | Should -Not -Match "github\.event\.label\.name == 'package request'"
     $content | Should -Match "github\.event\.action == 'opened'"
-    $content | Should -Match "github\.event\.action == 'labeled'"
+    $content | Should -Not -Match "github\.event\.action == 'labeled'"
     $content | Should -Match "startsWith\(github\.event\.issue\.title, 'Package: '\)"
     $content | Should -Match "contains\(github\.event\.issue\.body, '### 公开 GitHub 仓库'\)"
     $content | Should -Match "contains\(github\.event\.issue\.body, '### Repository'\)"
@@ -108,6 +109,8 @@ Describe 'package request workflow' {
     $content | Should -Match '--body-file'
     $content | Should -Match '校验通过，开始打包'
     $content | Should -Match '打包完成'
+    $content | Should -Match 'steps\.upload-package\.outputs\.artifact-url'
+    $content | Should -Match 'needs\.build\.outputs\.artifact_url'
     $content | Should -Match '打包失败'
     $content | Should -Match 'package succeeded'
     $content | Should -Match 'package failure'

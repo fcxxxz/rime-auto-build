@@ -4,7 +4,6 @@ on:
   issues:
     types:
       - opened
-      - labeled
 
 permissions:
   contents: read
@@ -20,18 +19,10 @@ jobs:
     if: >-
       ${{
         startsWith(github.event.issue.title, 'Package: ') &&
+        github.event.action == 'opened' &&
         (
-          (
-            github.event.action == 'opened' &&
-            (
-              contains(github.event.issue.body, '### 公开 GitHub 仓库') ||
-              contains(github.event.issue.body, '### Repository')
-            )
-          ) ||
-          (
-            github.event.action == 'labeled' &&
-            github.event.label.name == 'package request'
-          )
+          contains(github.event.issue.body, '### 公开 GitHub 仓库') ||
+          contains(github.event.issue.body, '### Repository')
         )
       }}
     runs-on: ubuntu-latest
@@ -130,6 +121,8 @@ jobs:
     needs: validate
     if: ${{ needs.validate.outputs.valid == 'true' }}
     runs-on: windows-2022
+    outputs:
+      artifact_url: ${{ steps.upload-package.outputs.artifact-url }}
     env:
       DATA_NAME: ${{ needs.validate.outputs.data_name }}
       DATA_DISPLAY: ${{ needs.validate.outputs.data_display }}
@@ -410,6 +403,7 @@ jobs:
             -OutputPath "manifest-$env:DATA_NAME-$env:WEASEL_NAME.json"
 
       - name: Upload package artifact
+        id: upload-package
         uses: actions/upload-artifact@v4
         with:
           name: package-request-${{ github.event.issue.number }}
@@ -455,10 +449,11 @@ jobs:
           cat > comment.md <<'EOF'
           打包完成：`${{ needs.validate.outputs.data_name }}` x `${{ needs.validate.outputs.weasel_name }}`。
 
-          请在本次 workflow 的 Artifacts 下载 `package-request-${{ github.event.issue.number }}`：
-          https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          下载链接：${{ needs.build.outputs.artifact_url }}
 
-          Artifacts 有 GitHub 保留期限。
+          Artifact 名称：`package-request-${{ github.event.issue.number }}`
+
+          下载需要登录 GitHub；Artifacts 有 GitHub 保留期限。
           EOF
           gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file comment.md
           gh label create "package succeeded" --repo ${{ github.repository }} --color 0E8A16 --description "One-off package request succeeded" || true

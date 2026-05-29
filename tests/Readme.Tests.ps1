@@ -33,6 +33,8 @@ Describe 'README update workflow explanation' {
     $content | Should -Match '方案短名和显示名会自动从仓库名推导'
     $content | Should -Match '不填就用仓库默认分支'
     $content | Should -Match '一次只能选择一个小狼毫版本'
+    $content | Should -Match '下载链接'
+    $content | Should -Match '需要登录 GitHub'
     $content | Should -Match 'package-request-\{issue_number\}'
     $content | Should -Match 'Artifacts'
     $content | Should -Match '长期加入'
