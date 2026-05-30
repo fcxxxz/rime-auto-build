@@ -6,11 +6,19 @@ param(
   [string]$CurrentManifestRoot = 'out/current-manifests',
   [string]$OutputPackageRoot = 'out/packages',
   [string]$OutputManifestRoot = 'out/manifests',
-  [string]$ManifestArchivePath = 'out/release-manifests.zip'
+  [string]$ManifestArchivePath = 'out/release-manifests.zip',
+  [string]$BuildsPath = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$ScriptDir = Split-Path -Parent $PSCommandPath
+Import-Module (Join-Path $ScriptDir 'lib\Yaml.psm1') -Force
+
+if ([string]::IsNullOrWhiteSpace($BuildsPath)) {
+  $BuildsPath = Join-Path $ScriptDir '..\builds.yaml'
+}
 
 function Get-ManifestKey {
   param([Parameter(Mandatory)]$Manifest)
@@ -38,6 +46,16 @@ function Read-ManifestFiles {
     }
   }
   return $items
+}
+
+function Get-ConfiguredManifestKeys {
+  param([Parameter(Mandatory)][string]$Path)
+
+  $keys = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  foreach ($item in Expand-BuildMatrix -Config (Read-BuildsYaml -Path $Path)) {
+    [void]$keys.Add("$($item.data_name)--$($item.weasel_name)")
+  }
+  return $keys
 }
 
 function Copy-InstallerForManifest {
@@ -70,6 +88,14 @@ foreach ($path in @($OutputPackageRoot, $OutputManifestRoot)) {
 
 $previous = Read-ManifestFiles -Root $PreviousManifestRoot
 $current = Read-ManifestFiles -Root $CurrentManifestRoot
+$configuredKeys = Get-ConfiguredManifestKeys -Path $BuildsPath
+
+foreach ($key in @($previous.Keys)) {
+  if (-not $configuredKeys.Contains($key)) {
+    Write-Host "Dropping previous release asset outside current builds.yaml: $key"
+    $previous.Remove($key)
+  }
+}
 
 foreach ($key in $current.Keys) {
   $previous[$key] = $current[$key]
