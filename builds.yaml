@@ -20,16 +20,20 @@ datas:
     display: 虎码
     url: https://github.com/a810439322/rime-tiger.git
     ref: main
-  - name: moran
-    display: 魔然
+  - name: moran-trad
+    display: 魔然繁体
     url: https://github.com/rimeinn/rime-moran.git
-    ref: main
+    ref: trad
+  - name: moran-simp
+    display: 魔然简体
+    url: https://github.com/rimeinn/rime-moran.git
+    ref: simp
   - name: 092wb
     display: 092五笔
     url: https://github.com/092wb/092wb.git
     ref: main
   - name: lutai
-    display: 露台码
+    display: 露台
     url: https://github.com/Flauver/lutai.git
     ref: dev
   - name: openfly

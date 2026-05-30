@@ -30,9 +30,10 @@
 | 短名 | 中文名 | 仓库 | 分支 |
 | --- | --- | --- | --- |
 | `tiger` | 虎码 | [a810439322/rime-tiger](https://github.com/a810439322/rime-tiger.git) | `main` |
-| `moran` | 魔然 | [rimeinn/rime-moran](https://github.com/rimeinn/rime-moran.git) | `main` |
+| `moran-trad` | 魔然繁体 | [rimeinn/rime-moran](https://github.com/rimeinn/rime-moran.git) | `trad` |
+| `moran-simp` | 魔然简体 | [rimeinn/rime-moran](https://github.com/rimeinn/rime-moran.git) | `simp` |
 | `092wb` | 092五笔 | [092wb/092wb](https://github.com/092wb/092wb.git) | `main` |
-| `lutai` | 露台码 | [Flauver/lutai](https://github.com/Flauver/lutai.git) | `dev` |
+| `lutai` | 露台 | [Flauver/lutai](https://github.com/Flauver/lutai.git) | `dev` |
 | `openfly` | 小鹤音形 | [amorphobia/openfly](https://github.com/amorphobia/openfly.git) | `main` |
 | `crane` | 凇鹤拼音 | [kchen0x/rime-crane](https://github.com/kchen0x/rime-crane.git) | `main` |
 | `snow-pinyin` | 冰雪拼音 | [rimeinn/rime-snow-pinyin](https://github.com/rimeinn/rime-snow-pinyin.git) | `main` |

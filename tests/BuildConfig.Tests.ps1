@@ -8,9 +8,9 @@ Describe 'repository build configuration' {
     $config = Read-BuildsYaml -Path $BuildsPath
     $matrix = @(Expand-BuildMatrix -Config $config)
 
-    $config.datas.Count | Should -Be 11
+    $config.datas.Count | Should -Be 12
     $config.weasels.Count | Should -Be 3
-    $matrix.Count | Should -Be 33
+    $matrix.Count | Should -Be 36
   }
 
   It 'uses release-friendly names for official and qing Weasel variants' {
@@ -50,9 +50,28 @@ Describe 'repository build configuration' {
     $wb092.ref | Should -Be 'main'
 
     $lutai | Should -Not -BeNullOrEmpty
-    $lutai.display | Should -Be '露台码'
+    $lutai.display | Should -Be '露台'
     $lutai.url | Should -Be 'https://github.com/Flauver/lutai.git'
     $lutai.ref | Should -Be 'dev'
+  }
+
+  It 'splits Moran into traditional and simplified branch packages' {
+    $config = Read-BuildsYaml -Path $BuildsPath
+    $moranMain = @($config.datas | Where-Object { $_.name -eq 'moran' })
+    $moranTrad = $config.datas | Where-Object { $_.name -eq 'moran-trad' }
+    $moranSimp = $config.datas | Where-Object { $_.name -eq 'moran-simp' }
+
+    $moranMain.Count | Should -Be 0
+
+    $moranTrad | Should -Not -BeNullOrEmpty
+    $moranTrad.display | Should -Be '魔然繁体'
+    $moranTrad.url | Should -Be 'https://github.com/rimeinn/rime-moran.git'
+    $moranTrad.ref | Should -Be 'trad'
+
+    $moranSimp | Should -Not -BeNullOrEmpty
+    $moranSimp.display | Should -Be '魔然简体'
+    $moranSimp.url | Should -Be 'https://github.com/rimeinn/rime-moran.git'
+    $moranSimp.ref | Should -Be 'simp'
   }
 
   It 'includes additional Rime data packages' {
