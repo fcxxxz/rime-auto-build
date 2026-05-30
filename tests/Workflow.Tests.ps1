@@ -259,6 +259,15 @@ Describe 'build workflow librime cache' {
     $content | Should -Match '(?s)function Get-MissingLibrimeFiles.*Resolve-PackLibrimeToolPath.*librime\\bin\\\$tool'
     $content | Should -Match 'Sync-PackLibrimeOpenCcTools'
   }
+
+  It 'passes GitHub token to pack.ps1 for authenticated librime release fallback' {
+    $buildContent = Get-Content -LiteralPath $WorkflowPath -Raw
+    $requestContent = Get-Content -LiteralPath $PackageRequestWorkflowPath -Raw
+
+    foreach ($content in @($buildContent, $requestContent)) {
+      $content | Should -Match '(?s)name:\s*Run pack\.ps1\s+shell:\s*pwsh\s+env:\s+GH_TOKEN:\s*\$\{\{ github\.token \}\}\s+run:\s*\./pack\.ps1'
+    }
+  }
 }
 
 Describe 'build workflow Windows toolchain' {
