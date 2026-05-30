@@ -217,8 +217,18 @@ Describe 'build workflow librime cache' {
     $content | Should -Match 'librime HEAD \(external fallback\)'
     $content | Should -Match 'sdk_version='
     $content | Should -Match 'weasel/librime/bin/opencc_dict\.exe'
-    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v5'
+    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v6'
     $content | Should -Not -Match '(?m)^\s+weasel/output/data/opencc\s*$'
+  }
+
+  It 'caches simplified-to-traditional OpenCC configs needed by Moran simplified packages' {
+    foreach ($path in @($WorkflowPath, $PackageRequestWorkflowPath)) {
+      $content = Get-Content -LiteralPath $path -Raw
+
+      $content | Should -Match 'weasel/output/data/opencc/STCharacters\.ocd2'
+      $content | Should -Match 'weasel/output/data/opencc/STPhrases\.ocd2'
+      $content | Should -Match 'weasel/output/data/opencc/s2t\.json'
+    }
   }
 
   It 'uses a dedicated script to sync only cacheable librime outputs' {

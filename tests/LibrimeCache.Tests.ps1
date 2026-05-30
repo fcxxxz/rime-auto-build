@@ -19,6 +19,9 @@ Describe 'Get-LibrimeCacheRelativePaths' {
     $paths | Should -Contain 'output\Win32\rime.dll'
     $paths | Should -Contain 'output\Win32\rime.pdb'
     $paths | Should -Contain 'output\data\opencc\TSCharacters.ocd2'
+    $paths | Should -Contain 'output\data\opencc\STCharacters.ocd2'
+    $paths | Should -Contain 'output\data\opencc\STPhrases.ocd2'
+    $paths | Should -Contain 'output\data\opencc\s2t.json'
 
     $paths | Should -Not -Contain 'output\install.nsi'
     $paths | Should -Not -Contain 'output\data\weasel-custom-data.txt'
@@ -44,7 +47,8 @@ Describe 'Copy-LibrimeCacheOutputs' {
       'lib\rime.lib',
       'output\rime.dll',
       'output\Win32\rime.dll',
-      'output\data\opencc\TSCharacters.ocd2'
+      'output\data\opencc\TSCharacters.ocd2',
+      'output\data\opencc\s2t.json'
     )
 
     foreach ($rel in $requiredFiles) {
@@ -58,6 +62,7 @@ Describe 'Copy-LibrimeCacheOutputs' {
     $copied | Should -Contain 'include\rime_api.h'
     $copied | Should -Contain 'librime\bin\opencc_dict.exe'
     $copied | Should -Contain 'output\data\opencc\TSCharacters.ocd2'
+    $copied | Should -Contain 'output\data\opencc\s2t.json'
     Test-Path -LiteralPath (Join-Path $DestinationRoot 'output\Win32\rime.dll') | Should -BeTrue
     Test-Path -LiteralPath (Join-Path $DestinationRoot 'output\rime.pdb') | Should -BeFalse
   }

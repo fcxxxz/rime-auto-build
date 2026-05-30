@@ -16,6 +16,7 @@ function Get-LibrimeCacheRelativePaths {
     'output\data\opencc\HKVariants.ocd2',
     'output\data\opencc\HKVariantsPhrases.ocd2',
     'output\data\opencc\HKVariantsRev.ocd2',
+    'output\data\opencc\HKVariantsRevPhrases.ocd2',
     'output\data\opencc\JPShinjitaiCharacters.ocd2',
     'output\data\opencc\JPShinjitaiPhrases.ocd2',
     'output\data\opencc\JPVariants.ocd2',
@@ -24,14 +25,26 @@ function Get-LibrimeCacheRelativePaths {
     'output\data\opencc\STPhrases.ocd2',
     'output\data\opencc\TSCharacters.ocd2',
     'output\data\opencc\TSPhrases.ocd2',
+    'output\data\opencc\TWPhrases.ocd2',
+    'output\data\opencc\TWPhrasesRev.ocd2',
     'output\data\opencc\TWVariants.ocd2',
     'output\data\opencc\TWVariantsPhrases.ocd2',
     'output\data\opencc\TWVariantsRev.ocd2',
+    'output\data\opencc\TWVariantsRevPhrases.ocd2',
+    'output\data\opencc\hk2s.json',
+    'output\data\opencc\hk2t.json',
+    'output\data\opencc\jp2t.json',
+    'output\data\opencc\s2hk.json',
+    'output\data\opencc\s2t.json',
+    'output\data\opencc\s2tw.json',
+    'output\data\opencc\s2twp.json',
     'output\data\opencc\t2hk.json',
     'output\data\opencc\t2jp.json',
     'output\data\opencc\t2s.json',
     'output\data\opencc\t2tw.json',
-    'output\data\opencc\tw2s.json'
+    'output\data\opencc\tw2s.json',
+    'output\data\opencc\tw2sp.json',
+    'output\data\opencc\tw2t.json'
   )
 }
 

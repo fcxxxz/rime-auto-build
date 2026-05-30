@@ -311,6 +311,7 @@ jobs:
             weasel/output/data/opencc/HKVariants.ocd2
             weasel/output/data/opencc/HKVariantsPhrases.ocd2
             weasel/output/data/opencc/HKVariantsRev.ocd2
+            weasel/output/data/opencc/HKVariantsRevPhrases.ocd2
             weasel/output/data/opencc/JPShinjitaiCharacters.ocd2
             weasel/output/data/opencc/JPShinjitaiPhrases.ocd2
             weasel/output/data/opencc/JPVariants.ocd2
@@ -319,15 +320,27 @@ jobs:
             weasel/output/data/opencc/STPhrases.ocd2
             weasel/output/data/opencc/TSCharacters.ocd2
             weasel/output/data/opencc/TSPhrases.ocd2
+            weasel/output/data/opencc/TWPhrases.ocd2
+            weasel/output/data/opencc/TWPhrasesRev.ocd2
             weasel/output/data/opencc/TWVariants.ocd2
             weasel/output/data/opencc/TWVariantsPhrases.ocd2
             weasel/output/data/opencc/TWVariantsRev.ocd2
+            weasel/output/data/opencc/TWVariantsRevPhrases.ocd2
+            weasel/output/data/opencc/hk2s.json
+            weasel/output/data/opencc/hk2t.json
+            weasel/output/data/opencc/jp2t.json
+            weasel/output/data/opencc/s2hk.json
+            weasel/output/data/opencc/s2t.json
+            weasel/output/data/opencc/s2tw.json
+            weasel/output/data/opencc/s2twp.json
             weasel/output/data/opencc/t2hk.json
             weasel/output/data/opencc/t2jp.json
             weasel/output/data/opencc/t2s.json
             weasel/output/data/opencc/t2tw.json
             weasel/output/data/opencc/tw2s.json
-          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v5
+            weasel/output/data/opencc/tw2sp.json
+            weasel/output/data/opencc/tw2t.json
+          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v6
 
       - name: Run pack.ps1
         shell: pwsh
@@ -362,6 +375,7 @@ jobs:
             weasel/output/data/opencc/HKVariants.ocd2
             weasel/output/data/opencc/HKVariantsPhrases.ocd2
             weasel/output/data/opencc/HKVariantsRev.ocd2
+            weasel/output/data/opencc/HKVariantsRevPhrases.ocd2
             weasel/output/data/opencc/JPShinjitaiCharacters.ocd2
             weasel/output/data/opencc/JPShinjitaiPhrases.ocd2
             weasel/output/data/opencc/JPVariants.ocd2
@@ -370,14 +384,26 @@ jobs:
             weasel/output/data/opencc/STPhrases.ocd2
             weasel/output/data/opencc/TSCharacters.ocd2
             weasel/output/data/opencc/TSPhrases.ocd2
+            weasel/output/data/opencc/TWPhrases.ocd2
+            weasel/output/data/opencc/TWPhrasesRev.ocd2
             weasel/output/data/opencc/TWVariants.ocd2
             weasel/output/data/opencc/TWVariantsPhrases.ocd2
             weasel/output/data/opencc/TWVariantsRev.ocd2
+            weasel/output/data/opencc/TWVariantsRevPhrases.ocd2
+            weasel/output/data/opencc/hk2s.json
+            weasel/output/data/opencc/hk2t.json
+            weasel/output/data/opencc/jp2t.json
+            weasel/output/data/opencc/s2hk.json
+            weasel/output/data/opencc/s2t.json
+            weasel/output/data/opencc/s2tw.json
+            weasel/output/data/opencc/s2twp.json
             weasel/output/data/opencc/t2hk.json
             weasel/output/data/opencc/t2jp.json
             weasel/output/data/opencc/t2s.json
             weasel/output/data/opencc/t2tw.json
             weasel/output/data/opencc/tw2s.json
+            weasel/output/data/opencc/tw2sp.json
+            weasel/output/data/opencc/tw2t.json
           key: ${{ steps.librime-cache.outputs.cache-primary-key }}
 
       - name: Rename installer
