@@ -20,10 +20,16 @@
     }
   },
   "datas": {
-    "moran": {
+    "moran-trad": {
       "url": "https://github.com/rimeinn/rime-moran.git",
-      "ref": "main",
-      "sha": "aa8348bb9e7fc54716c2a40cbc02c1c14bebb612",
+      "ref": "trad",
+      "sha": "124d441ebdd79b55c704e4774f07f50829a70e55",
+      "checked_at": "2026-05-29T04:12:46Z"
+    },
+    "moran-simp": {
+      "url": "https://github.com/rimeinn/rime-moran.git",
+      "ref": "simp",
+      "sha": "6f8c2e2331e4fa110e7464f3246b16cbe87cfa01",
       "checked_at": "2026-05-29T04:12:46Z"
     },
     "kagiroi": {

@@ -1,6 +1,7 @@
 BeforeAll {
   Import-Module (Join-Path $PSScriptRoot '..\scripts\lib\Yaml.psm1') -Force
   $BuildsPath = Join-Path $PSScriptRoot '..\builds.yaml'
+  $StatePath = Join-Path $PSScriptRoot '..\state\last-seen.json'
 }
 
 Describe 'repository build configuration' {
@@ -72,6 +73,21 @@ Describe 'repository build configuration' {
     $moranSimp.display | Should -Be '魔然简体'
     $moranSimp.url | Should -Be 'https://github.com/rimeinn/rime-moran.git'
     $moranSimp.ref | Should -Be 'simp'
+  }
+
+  It 'does not keep removed data branches in the upstream watch state' {
+    $config = Read-BuildsYaml -Path $BuildsPath
+    $state = Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
+    $configuredDataNames = @($config.datas | ForEach-Object { $_.name })
+    $stateDataNames = @($state.datas.PSObject.Properties.Name)
+
+    $stateDataNames | Should -Not -Contain 'moran'
+    $stateDataNames | Should -Contain 'moran-trad'
+    $stateDataNames | Should -Contain 'moran-simp'
+
+    foreach ($dataName in $stateDataNames) {
+      $configuredDataNames | Should -Contain $dataName
+    }
   }
 
   It 'includes additional Rime data packages' {
