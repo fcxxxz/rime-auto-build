@@ -217,7 +217,7 @@ Describe 'build workflow librime cache' {
     $content | Should -Match 'librime HEAD \(external fallback\)'
     $content | Should -Match 'sdk_version='
     $content | Should -Match 'weasel/librime/bin/opencc_dict\.exe'
-    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v4'
+    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v5'
     $content | Should -Not -Match '(?m)^\s+weasel/output/data/opencc\s*$'
   }
 
@@ -250,6 +250,14 @@ Describe 'build workflow librime cache' {
       Should -BeGreaterThan $content.IndexOf('$missingLibrime = Get-MissingLibrimeFiles $WeaselRepo', [StringComparison]::Ordinal)
     $content.IndexOf('Install-PackLibrimeLuaPlugin', [StringComparison]::Ordinal) |
       Should -BeLessThan $content.IndexOf('call build.bat librime', [StringComparison]::Ordinal)
+  }
+
+  It 'treats missing OpenCC tools as incomplete librime preparation' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match '(?s)function Get-MissingLibrimeFiles.*foreach \(\$tool in @\(''opencc\.exe'', ''opencc_dict\.exe'', ''opencc_phrase_extract\.exe''\)'
+    $content | Should -Match '(?s)function Get-MissingLibrimeFiles.*Resolve-PackLibrimeToolPath.*librime\\bin\\\$tool'
+    $content | Should -Match 'Sync-PackLibrimeOpenCcTools'
   }
 }
 

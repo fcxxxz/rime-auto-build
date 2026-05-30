@@ -201,9 +201,15 @@ function Get-MissingLibrimeFiles([string]$WeaselRoot) {
     'output\rime.dll',
     'output\Win32\rime.dll'
   )
-  return @($required | Where-Object {
+  $missing = @($required | Where-Object {
     -not (Test-Path -LiteralPath (Join-Path $WeaselRoot $_))
   })
+  foreach ($tool in @('opencc.exe', 'opencc_dict.exe', 'opencc_phrase_extract.exe')) {
+    if (-not (Resolve-PackLibrimeToolPath -WeaselRoot $WeaselRoot -ToolName $tool)) {
+      $missing += "librime\bin\$tool"
+    }
+  }
+  return @($missing)
 }
 
 function Write-WeaselEnvBat([string]$WeaselRoot) {
@@ -935,6 +941,12 @@ Missing:
   Write-Host ''
 }
 
+$syncedOpenCcTools = @(Sync-PackLibrimeOpenCcTools -WeaselRoot $WeaselRepo)
+if ($syncedOpenCcTools.Count -gt 0) {
+  Write-Host ("OpenCC tool(s) ready for custom data and cache: {0}" -f ($syncedOpenCcTools -join ', '))
+  Write-Host ''
+}
+
 Assert-PackLibrimeLuaSupport -WeaselRoot $WeaselRepo -CustomDataDir $CustomDataDir -Force
 
 
@@ -1034,7 +1046,10 @@ if ($knownGeneratorScripts.Count -gt 0) {
   }
 }
 
-$openccDict = Join-Path $WeaselRepo 'librime\bin\opencc_dict.exe'
+$openccDict = Resolve-PackLibrimeToolPath -WeaselRoot $WeaselRepo -ToolName 'opencc_dict.exe'
+if (-not $openccDict) {
+  $openccDict = Join-Path $WeaselRepo 'librime\bin\opencc_dict.exe'
+}
 $generatedOpenCcDictionaries = @(Convert-PackCustomOpenCcTextDictionaries -OutputData $outputData -OpenCcDictPath $openccDict)
 foreach ($relSlash in $generatedOpenCcDictionaries) {
   $customRelList.Add($relSlash)

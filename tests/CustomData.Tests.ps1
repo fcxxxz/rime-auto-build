@@ -94,6 +94,24 @@ exit /b 0
     Test-Path -LiteralPath (Join-Path $openccRoot 'moran_TSCharacters.ocd2') | Should -BeTrue
   }
 
+  It 'canonicalizes OpenCC tools from librime build output for packaging and cache' {
+    $weaselRoot = Join-Path $TestRoot 'weasel'
+    $builtToolRoot = Join-Path $weaselRoot 'librime\deps\opencc\build_x64\src\tools\Release'
+    New-Item -ItemType Directory -Path $builtToolRoot -Force | Out-Null
+    foreach ($tool in @('opencc.exe', 'opencc_dict.exe', 'opencc_phrase_extract.exe')) {
+      Set-Content -LiteralPath (Join-Path $builtToolRoot $tool) -Value $tool -NoNewline -Encoding ASCII
+    }
+
+    $synced = @(Sync-PackLibrimeOpenCcTools -WeaselRoot $weaselRoot)
+    $openccDict = Resolve-PackLibrimeToolPath -WeaselRoot $weaselRoot -ToolName 'opencc_dict.exe'
+
+    $synced | Should -Contain 'librime/bin/opencc.exe'
+    $synced | Should -Contain 'librime/bin/opencc_dict.exe'
+    $synced | Should -Contain 'librime/bin/opencc_phrase_extract.exe'
+    $openccDict | Should -Be (Join-Path $weaselRoot 'librime\bin\opencc_dict.exe')
+    Get-Content -LiteralPath $openccDict -Raw | Should -Be 'opencc_dict.exe'
+  }
+
   It 'runs known custom-data generators before OpenCC compilation' {
     New-Item -ItemType Directory -Path (Join-Path $OutputRoot 'tools'),(Join-Path $OutputRoot 'lua'),(Join-Path $OutputRoot 'opencc') -Force | Out-Null
     foreach ($script in @('gen_chars.py', 'gen_zrmdb.py', 'gen_chaifen_filter.py')) {

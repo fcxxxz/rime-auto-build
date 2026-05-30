@@ -179,6 +179,81 @@ function Convert-PackCustomOpenCcTextDictionaries([string]$OutputData, [string]$
   return @($generated)
 }
 
+function Get-PackLibrimeToolCandidateRoots([string]$WeaselRoot) {
+  $roots = New-Object System.Collections.Generic.List[string]
+  foreach ($relative in @(
+    'librime\bin',
+    'librime\deps\opencc\build_x64\src\tools\Release',
+    'librime\deps\opencc\build\src\tools\Release',
+    'librime\deps\opencc\build_Win32\src\tools\Release',
+    'librime\deps\opencc\build_arm64\src\tools\Release',
+    'librime\dist\bin'
+  )) {
+    $roots.Add((Join-Path $WeaselRoot $relative))
+  }
+
+  $openccDepsRoot = Join-Path $WeaselRoot 'librime\deps\opencc'
+  if (Test-Path -LiteralPath $openccDepsRoot -PathType Container) {
+    Get-ChildItem -LiteralPath $openccDepsRoot -Directory -Filter 'build*' -ErrorAction SilentlyContinue |
+      Sort-Object Name |
+      ForEach-Object {
+        $roots.Add((Join-Path $_.FullName 'src\tools\Release'))
+      }
+  }
+
+  $extractedRoot = Join-Path $WeaselRoot '.pack-rime\extracted'
+  if (Test-Path -LiteralPath $extractedRoot -PathType Container) {
+    Get-ChildItem -LiteralPath $extractedRoot -Directory -ErrorAction SilentlyContinue |
+      Sort-Object @{ Expression = {
+          if ($_.Name -match 'x64') { 0 }
+          elseif ($_.Name -match 'x86') { 1 }
+          else { 2 }
+        }
+      }, Name |
+      ForEach-Object {
+        $roots.Add((Join-Path $_.FullName 'bin'))
+        $roots.Add((Join-Path $_.FullName 'dist\bin'))
+      }
+  }
+
+  return @($roots)
+}
+
+function Resolve-PackLibrimeToolPath([string]$WeaselRoot, [string]$ToolName) {
+  foreach ($root in Get-PackLibrimeToolCandidateRoots $WeaselRoot) {
+    $candidate = Join-Path $root $ToolName
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      return [System.IO.Path]::GetFullPath($candidate)
+    }
+  }
+  return $null
+}
+
+function Sync-PackLibrimeOpenCcTools([string]$WeaselRoot) {
+  $canonicalRoot = Join-Path $WeaselRoot 'librime\bin'
+  if (-not (Test-Path -LiteralPath $canonicalRoot)) {
+    New-Item -ItemType Directory -Path $canonicalRoot -Force | Out-Null
+  }
+
+  $synced = New-Object System.Collections.Generic.List[string]
+  foreach ($tool in @('opencc.exe', 'opencc_dict.exe', 'opencc_phrase_extract.exe')) {
+    $source = Resolve-PackLibrimeToolPath -WeaselRoot $WeaselRoot -ToolName $tool
+    if (-not $source) {
+      continue
+    }
+
+    $destination = Join-Path $canonicalRoot $tool
+    if (-not ([System.IO.Path]::GetFullPath($source).Equals(
+        [System.IO.Path]::GetFullPath($destination),
+        [StringComparison]::OrdinalIgnoreCase))) {
+      Copy-Item -LiteralPath $source -Destination $destination -Force
+    }
+    $synced.Add("librime/bin/$tool")
+  }
+
+  return @($synced)
+}
+
 function Invoke-PackGeneratorRule([string]$OutputData, [string]$PythonPath, [string]$ScriptRel, [string]$OutputRel) {
   $scriptPath = Join-Path $OutputData $ScriptRel
   if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
@@ -346,4 +421,4 @@ function Get-PackRequiredTopLevelDataBasenames([string]$OutputData, [string[]]$S
   return @($keep | Sort-Object)
 }
 
-Export-ModuleMember -Function Copy-PackCustomDataFile, Convert-PackCustomOpenCcTextDictionaries, Invoke-PackCustomDataGenerators, Get-PackRequiredTopLevelDataBasenames
+Export-ModuleMember -Function Copy-PackCustomDataFile, Convert-PackCustomOpenCcTextDictionaries, Resolve-PackLibrimeToolPath, Sync-PackLibrimeOpenCcTools, Invoke-PackCustomDataGenerators, Get-PackRequiredTopLevelDataBasenames
