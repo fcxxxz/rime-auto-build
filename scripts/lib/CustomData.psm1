@@ -72,4 +72,278 @@ function Copy-PackCustomDataFile([object]$File, [string]$CustomRoot, [string]$Ou
   return $relSlash
 }
 
-Export-ModuleMember -Function Copy-PackCustomDataFile
+function Add-PackOpenCcOcd2References([object]$Node, [System.Collections.Generic.HashSet[string]]$References) {
+  if ($null -eq $Node) {
+    return
+  }
+
+  if ($Node -is [string] -or $Node.GetType().IsPrimitive) {
+    return
+  }
+
+  if ($Node -is [System.Collections.IDictionary]) {
+    foreach ($value in $Node.Values) {
+      Add-PackOpenCcOcd2References $value $References
+    }
+    return
+  }
+
+  if ($Node -is [System.Collections.IEnumerable] -and $Node -isnot [pscustomobject]) {
+    foreach ($item in $Node) {
+      Add-PackOpenCcOcd2References $item $References
+    }
+    return
+  }
+
+  $properties = @($Node.PSObject.Properties)
+  if ($properties.Count -eq 0) {
+    return
+  }
+
+  $typeProperty = $Node.PSObject.Properties['type']
+  $fileProperty = $Node.PSObject.Properties['file']
+  if ($typeProperty -and $fileProperty -and
+      [string]::Equals([string]$typeProperty.Value, 'ocd2', [StringComparison]::OrdinalIgnoreCase)) {
+    $file = [string]$fileProperty.Value
+    if ([System.IO.Path]::GetExtension($file) -ieq '.ocd2') {
+      [void]$References.Add($file)
+    }
+  }
+
+  foreach ($property in $properties) {
+    Add-PackOpenCcOcd2References $property.Value $References
+  }
+}
+
+function Get-PackOpenCcOcd2References([string]$ConfigPath) {
+  try {
+    $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+  } catch {
+    throw "Failed to parse OpenCC config '$ConfigPath': $($_.Exception.Message)"
+  }
+
+  $references = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  Add-PackOpenCcOcd2References $config $references
+  return @($references | Sort-Object)
+}
+
+function Convert-PackCustomOpenCcTextDictionaries([string]$OutputData, [string]$OpenCcDictPath) {
+  $openccRoot = Join-Path $OutputData 'opencc'
+  if (-not (Test-Path -LiteralPath $openccRoot -PathType Container)) {
+    return @()
+  }
+
+  $references = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  Get-ChildItem -LiteralPath $openccRoot -Filter '*.json' -File -ErrorAction SilentlyContinue | ForEach-Object {
+    foreach ($reference in Get-PackOpenCcOcd2References $_.FullName) {
+      [void]$references.Add($reference)
+    }
+  }
+
+  $generated = New-Object System.Collections.Generic.List[string]
+  foreach ($reference in ($references | Sort-Object)) {
+    if ([System.IO.Path]::IsPathRooted($reference)) {
+      throw "OpenCC dictionary reference must be relative: $reference"
+    }
+
+    $relativeParts = @($reference -split '[\\/]')
+    $relativeNative = [System.IO.Path]::Combine([string[]]$relativeParts)
+    $target = [System.IO.Path]::GetFullPath((Join-Path $openccRoot $relativeNative))
+    if (-not (Test-PackPathUnderRoot $target $openccRoot)) {
+      throw "OpenCC dictionary reference escapes opencc directory: $reference"
+    }
+    if (Test-Path -LiteralPath $target -PathType Leaf) {
+      continue
+    }
+
+    $source = [System.IO.Path]::ChangeExtension($target, '.txt')
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+      Write-Warning "Skipping OpenCC dictionary build: $reference has no matching text source '$([System.IO.Path]::GetFileName($source))'."
+      continue
+    }
+    if (-not (Test-Path -LiteralPath $OpenCcDictPath -PathType Leaf)) {
+      throw "opencc_dict not found: $OpenCcDictPath"
+    }
+
+    & $OpenCcDictPath -i $source -o $target -f text -t ocd2
+    if ($LASTEXITCODE -ne 0) {
+      throw "opencc_dict failed while building $reference (exit code $LASTEXITCODE)."
+    }
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+      throw "opencc_dict did not create expected output: $target"
+    }
+
+    $generated.Add((Get-PackCustomDataRelativePath $target $OutputData))
+  }
+
+  return @($generated)
+}
+
+function Invoke-PackGeneratorRule([string]$OutputData, [string]$PythonPath, [string]$ScriptRel, [string]$OutputRel) {
+  $scriptPath = Join-Path $OutputData $ScriptRel
+  if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+    return $null
+  }
+
+  $outputPath = [System.IO.Path]::GetFullPath((Join-Path $OutputData $OutputRel))
+  if (-not (Test-PackPathUnderRoot $outputPath $OutputData)) {
+    throw "custom-data generator output escapes output data directory: $OutputRel"
+  }
+  if (Test-Path -LiteralPath $outputPath -PathType Leaf) {
+    return $null
+  }
+  if (-not (Test-Path -LiteralPath $PythonPath -PathType Leaf)) {
+    throw "python not found for custom-data generator '$ScriptRel': $PythonPath"
+  }
+
+  $outputDir = Split-Path -Parent $outputPath
+  if (-not (Test-Path -LiteralPath $outputDir)) {
+    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+  }
+  $tempOutput = Join-Path $outputDir ([System.IO.Path]::GetFileName($outputPath) + '.tmp')
+  if (Test-Path -LiteralPath $tempOutput) {
+    Remove-Item -LiteralPath $tempOutput -Force
+  }
+
+  Push-Location $OutputData
+  $oldPythonUtf8 = $env:PYTHONUTF8
+  try {
+    $env:PYTHONUTF8 = '1'
+    & $PythonPath $ScriptRel > $tempOutput
+    if ($LASTEXITCODE -ne 0) {
+      throw "custom-data generator '$ScriptRel' failed with exit code $LASTEXITCODE."
+    }
+  } finally {
+    if ($null -eq $oldPythonUtf8) {
+      Remove-Item Env:\PYTHONUTF8 -ErrorAction SilentlyContinue
+    } else {
+      $env:PYTHONUTF8 = $oldPythonUtf8
+    }
+    Pop-Location
+  }
+
+  if (-not (Test-Path -LiteralPath $tempOutput -PathType Leaf)) {
+    throw "custom-data generator '$ScriptRel' did not create output: $OutputRel"
+  }
+  Move-Item -LiteralPath $tempOutput -Destination $outputPath -Force
+  return ($OutputRel -replace '\\','/')
+}
+
+function Invoke-PackCustomDataGenerators([string]$OutputData, [string]$PythonPath) {
+  $rules = @(
+    @{ Script = 'tools\gen_chars.py'; Output = 'moran.chars.dict.yaml' },
+    @{ Script = 'tools\gen_zrmdb.py'; Output = 'lua\zrmdb.txt' },
+    @{ Script = 'tools\gen_chaifen_filter.py'; Output = 'opencc\moran_chaifen.txt' }
+  )
+
+  $generated = New-Object System.Collections.Generic.List[string]
+  foreach ($rule in $rules) {
+    $rel = Invoke-PackGeneratorRule -OutputData $OutputData -PythonPath $PythonPath -ScriptRel $rule.Script -OutputRel $rule.Output
+    if ($rel) {
+      $generated.Add($rel)
+    }
+  }
+  return @($generated)
+}
+
+function ConvertTo-PackRimeReferenceName([string]$Value) {
+  $name = ($Value -replace '#.*$','').Trim().Trim('"', "'")
+  if ($name -match '^[A-Za-z0-9_.-]+$') {
+    return $name
+  }
+  return $null
+}
+
+function Add-PackExistingDataBasename(
+  [System.Collections.Generic.HashSet[string]]$Set,
+  [string]$OutputData,
+  [string]$Basename
+) {
+  if ([string]::IsNullOrWhiteSpace($Basename)) {
+    return $false
+  }
+  if (Test-Path -LiteralPath (Join-Path $OutputData $Basename) -PathType Leaf) {
+    return $Set.Add($Basename)
+  }
+  return $false
+}
+
+function Get-PackReferencedTopLevelDataBasenames([string]$Path, [string]$OutputData) {
+  $refs = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  $inDependencies = $false
+  $inImportTables = $false
+
+  foreach ($line in Get-Content -LiteralPath $Path -Encoding UTF8) {
+    $stripped = $line -replace '#.*$',''
+
+    if ($stripped -match '^\s*dependencies\s*:\s*$') {
+      $inDependencies = $true
+      $inImportTables = $false
+      continue
+    }
+    if ($stripped -match '^\s*import_tables\s*:\s*$') {
+      $inImportTables = $true
+      $inDependencies = $false
+      continue
+    }
+    if ($stripped -match '^\S' -and $stripped -notmatch '^\s*-') {
+      $inDependencies = $false
+      $inImportTables = $false
+    }
+
+    if ($inDependencies -and $stripped -match '^\s*-\s*([A-Za-z0-9_.-]+)\s*$') {
+      $name = ConvertTo-PackRimeReferenceName $Matches[1]
+      if ($name) {
+        [void](Add-PackExistingDataBasename $refs $OutputData "$name.schema.yaml")
+        [void](Add-PackExistingDataBasename $refs $OutputData "$name.dict.yaml")
+      }
+      continue
+    }
+
+    if ($inImportTables -and $stripped -match '^\s*-\s*([A-Za-z0-9_.-]+)\s*$') {
+      $name = ConvertTo-PackRimeReferenceName $Matches[1]
+      if ($name) {
+        [void](Add-PackExistingDataBasename $refs $OutputData "$name.dict.yaml")
+      }
+      continue
+    }
+
+    if ($stripped -match '^\s*dictionary\s*:\s*(.+?)\s*$') {
+      $name = ConvertTo-PackRimeReferenceName $Matches[1]
+      if ($name) {
+        [void](Add-PackExistingDataBasename $refs $OutputData "$name.dict.yaml")
+      }
+    }
+  }
+
+  return @($refs | Sort-Object)
+}
+
+function Get-PackRequiredTopLevelDataBasenames([string]$OutputData, [string[]]$SeedBasenames) {
+  $keep = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  $queue = [System.Collections.Generic.Queue[string]]::new()
+
+  foreach ($basename in $SeedBasenames) {
+    if (Add-PackExistingDataBasename $keep $OutputData $basename) {
+      $queue.Enqueue($basename)
+    }
+  }
+
+  while ($queue.Count -gt 0) {
+    $basename = $queue.Dequeue()
+    $path = Join-Path $OutputData $basename
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+      continue
+    }
+
+    foreach ($ref in Get-PackReferencedTopLevelDataBasenames -Path $path -OutputData $OutputData) {
+      if ($keep.Add($ref)) {
+        $queue.Enqueue($ref)
+      }
+    }
+  }
+
+  return @($keep | Sort-Object)
+}
+
+Export-ModuleMember -Function Copy-PackCustomDataFile, Convert-PackCustomOpenCcTextDictionaries, Invoke-PackCustomDataGenerators, Get-PackRequiredTopLevelDataBasenames

@@ -1015,7 +1015,38 @@ foreach ($f in $customFiles) {
   $customRelList.Add($relSlash)
   [void]$customBasenameSet.Add([System.IO.Path]::GetFileName($relSlash))
 }
-Write-Host ("  copied {0} file(s)" -f $customRelList.Count)
+
+$knownGeneratorScripts = @(
+  'tools\gen_chars.py',
+  'tools\gen_zrmdb.py',
+  'tools\gen_chaifen_filter.py'
+) | Where-Object { Test-Path -LiteralPath (Join-Path $outputData $_) -PathType Leaf }
+$generatedDataFiles = @()
+if ($knownGeneratorScripts.Count -gt 0) {
+  $python = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $python) {
+    throw "custom-data has generator script(s), but python is not available in PATH: $($knownGeneratorScripts -join ', ')"
+  }
+  $generatedDataFiles = @(Invoke-PackCustomDataGenerators -OutputData $outputData -PythonPath $python.Source)
+  foreach ($relSlash in $generatedDataFiles) {
+    $customRelList.Add($relSlash)
+    [void]$customBasenameSet.Add([System.IO.Path]::GetFileName($relSlash))
+  }
+}
+
+$openccDict = Join-Path $WeaselRepo 'librime\bin\opencc_dict.exe'
+$generatedOpenCcDictionaries = @(Convert-PackCustomOpenCcTextDictionaries -OutputData $outputData -OpenCcDictPath $openccDict)
+foreach ($relSlash in $generatedOpenCcDictionaries) {
+  $customRelList.Add($relSlash)
+  [void]$customBasenameSet.Add([System.IO.Path]::GetFileName($relSlash))
+}
+Write-Host ("  copied/generated {0} file(s)" -f $customRelList.Count)
+if ($generatedDataFiles.Count -gt 0) {
+  Write-Host ("  generated custom-data files: {0}" -f ($generatedDataFiles -join ', '))
+}
+if ($generatedOpenCcDictionaries.Count -gt 0) {
+  Write-Host ("  generated OpenCC dictionaries: {0}" -f ($generatedOpenCcDictionaries -join ', '))
+}
 
 # weasel-custom-data.txt - one path per line, LF endings, no trailing blank.
 $customListPath = Join-Path $outputData 'weasel-custom-data.txt'
@@ -1129,11 +1160,19 @@ must be able to load the preset vocabulary resource essay.txt.
 # Drop top-level *.schema.yaml / *.dict.yaml / *.custom.yaml that are not part of
 # this package. Keep core support files (default.yaml, weasel.yaml, essay.txt,
 # etc.) untouched - they don't match these suffixes.
+$requiredBasenames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$seedBasenames = @()
+foreach ($name in $customBasenameSet) { $seedBasenames += $name }
+foreach ($name in Get-PackRequiredTopLevelDataBasenames -OutputData $outputData -SeedBasenames $seedBasenames) {
+  [void]$requiredBasenames.Add($name)
+}
+Write-Host ("  keeping {0} top-level schema/dict/custom yaml(s), including dependency closure" -f $requiredBasenames.Count)
+
 $dropPatterns = @('*.schema.yaml', '*.dict.yaml', '*.custom.yaml')
 $dropped = 0
 foreach ($pat in $dropPatterns) {
   Get-ChildItem -LiteralPath $outputData -Filter $pat -File -ErrorAction SilentlyContinue | ForEach-Object {
-    if (-not $customBasenameSet.Contains($_.Name)) {
+    if (-not $requiredBasenames.Contains($_.Name)) {
       Remove-Item -LiteralPath $_.FullName -Force
       $dropped++
     }
