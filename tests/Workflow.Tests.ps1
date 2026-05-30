@@ -216,7 +216,8 @@ Describe 'build workflow librime cache' {
     $content | Should -Match 'git clone --depth 1 -b master https://github\.com/rime/librime\.git librime'
     $content | Should -Match 'librime HEAD \(external fallback\)'
     $content | Should -Match 'sdk_version='
-    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v3'
+    $content | Should -Match 'weasel/librime/bin/opencc_dict\.exe'
+    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v4'
     $content | Should -Not -Match '(?m)^\s+weasel/output/data/opencc\s*$'
   }
 

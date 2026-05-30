@@ -213,6 +213,9 @@ jobs:
             weasel/include/rime_levers_api.h
             weasel/lib64/rime.lib
             weasel/lib/rime.lib
+            weasel/librime/bin/opencc.exe
+            weasel/librime/bin/opencc_dict.exe
+            weasel/librime/bin/opencc_phrase_extract.exe
             weasel/output/rime.dll
             weasel/output/rime.pdb
             weasel/output/Win32/rime.dll
@@ -236,7 +239,7 @@ jobs:
             weasel/output/data/opencc/t2s.json
             weasel/output/data/opencc/t2tw.json
             weasel/output/data/opencc/tw2s.json
-          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v3
+          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v4
 
       - name: Run pack.ps1
         shell: pwsh
@@ -259,6 +262,9 @@ jobs:
             weasel/include/rime_levers_api.h
             weasel/lib64/rime.lib
             weasel/lib/rime.lib
+            weasel/librime/bin/opencc.exe
+            weasel/librime/bin/opencc_dict.exe
+            weasel/librime/bin/opencc_phrase_extract.exe
             weasel/output/rime.dll
             weasel/output/rime.pdb
             weasel/output/Win32/rime.dll
