@@ -217,7 +217,7 @@ Describe 'build workflow librime cache' {
     $content | Should -Match 'git clone --depth 1 -b master https://github\.com/rime/librime\.git librime'
     $content | Should -Match 'librime HEAD \(external fallback\)'
     $content | Should -Match 'sdk_version='
-    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v7'
+    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v8'
     $content | Should -Not -Match '(?m)^\s+weasel/output/data/opencc\s*$'
   }
 
@@ -388,6 +388,13 @@ Describe 'pack script Boost preparation' {
     $content | Should -Match $stableCachePattern
     $content | Should -Match '\$asset\.size'
     $content | Should -Match 'incomplete librime asset'
+  }
+
+  It 'keeps prebuilt librime OpenCC resources available for cache staging' {
+    $content = Get-Content -LiteralPath $PackPath -Raw
+
+    $content | Should -Match "(?s)Copy-PackFilesIfPresent .*'share\\opencc'.*'output\\data\\opencc'"
+    $content | Should -Match "(?s)Copy-PackFilesIfPresent .*'share\\opencc'.*'librime\\share\\opencc'"
   }
 
   It 'preserves each upstream WeaselServer shutdown command before taskkill fallback' {

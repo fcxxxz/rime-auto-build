@@ -207,7 +207,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .librime-cache
-          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v7
+          key: librime-${{ runner.os }}-weasel-${{ steps.weasel-rev.outputs.sha }}-librime-${{ steps.librime-rev.outputs.sha }}-librime-lua-${{ steps.librime-lua-rev.outputs.lua_sha }}-lua-thirdparty-${{ steps.librime-lua-rev.outputs.thirdparty_sha }}-msvc-${{ steps.msvc.outputs.msvc_tools_version }}-sdk-${{ steps.msvc.outputs.sdk_version }}-boost-static-v3-lua-v8
 
       - name: Restore cached librime outputs
         if: steps.librime-cache.outputs.cache-hit == 'true'

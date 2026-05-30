@@ -310,6 +310,7 @@ function Copy-PackRimeReleasePayload([string]$ExtractRoot, [string]$WeaselRoot) 
       Copy-PackFilesIfPresent (Join-Path $dir.FullName 'dist\lib') 'rime.dll' (Join-Path $WeaselRoot 'output')
       Copy-PackFilesIfPresent (Join-Path $dir.FullName 'dist\lib') 'rime.pdb' (Join-Path $WeaselRoot 'output')
       Copy-PackFilesIfPresent (Join-Path $dir.FullName 'share\opencc') '*.*' (Join-Path $WeaselRoot 'output\data\opencc')
+      Copy-PackFilesIfPresent (Join-Path $dir.FullName 'share\opencc') '*.*' (Join-Path $WeaselRoot 'librime\share\opencc')
     }
   }
 }
