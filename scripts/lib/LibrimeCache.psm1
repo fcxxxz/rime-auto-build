@@ -12,40 +12,27 @@ function Get-LibrimeCacheRelativePaths {
     'output\rime.dll',
     'output\rime.pdb',
     'output\Win32\rime.dll',
-    'output\Win32\rime.pdb',
-    'output\data\opencc\HKVariants.ocd2',
-    'output\data\opencc\HKVariantsPhrases.ocd2',
-    'output\data\opencc\HKVariantsRev.ocd2',
-    'output\data\opencc\HKVariantsRevPhrases.ocd2',
-    'output\data\opencc\JPShinjitaiCharacters.ocd2',
-    'output\data\opencc\JPShinjitaiPhrases.ocd2',
-    'output\data\opencc\JPVariants.ocd2',
-    'output\data\opencc\JPVariantsRev.ocd2',
-    'output\data\opencc\STCharacters.ocd2',
-    'output\data\opencc\STPhrases.ocd2',
-    'output\data\opencc\TSCharacters.ocd2',
-    'output\data\opencc\TSPhrases.ocd2',
-    'output\data\opencc\TWPhrases.ocd2',
-    'output\data\opencc\TWPhrasesRev.ocd2',
-    'output\data\opencc\TWVariants.ocd2',
-    'output\data\opencc\TWVariantsPhrases.ocd2',
-    'output\data\opencc\TWVariantsRev.ocd2',
-    'output\data\opencc\TWVariantsRevPhrases.ocd2',
-    'output\data\opencc\hk2s.json',
-    'output\data\opencc\hk2t.json',
-    'output\data\opencc\jp2t.json',
-    'output\data\opencc\s2hk.json',
-    'output\data\opencc\s2t.json',
-    'output\data\opencc\s2tw.json',
-    'output\data\opencc\s2twp.json',
-    'output\data\opencc\t2hk.json',
-    'output\data\opencc\t2jp.json',
-    'output\data\opencc\t2s.json',
-    'output\data\opencc\t2tw.json',
-    'output\data\opencc\tw2s.json',
-    'output\data\opencc\tw2sp.json',
-    'output\data\opencc\tw2t.json'
+    'output\Win32\rime.pdb'
   )
+}
+
+function Copy-LibrimeCacheFile(
+  [string]$SourcePath,
+  [string]$DestinationPath,
+  [string]$RelativePath,
+  [System.Collections.Generic.List[string]]$Copied
+) {
+  if (-not (Test-Path -LiteralPath $SourcePath -PathType Leaf)) {
+    return
+  }
+
+  $destinationDir = Split-Path -Parent $DestinationPath
+  if (-not (Test-Path -LiteralPath $destinationDir)) {
+    New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
+  }
+
+  Copy-Item -LiteralPath $SourcePath -Destination $DestinationPath -Force
+  $Copied.Add($RelativePath)
 }
 
 function Copy-LibrimeCacheOutputs(
@@ -63,21 +50,48 @@ function Copy-LibrimeCacheOutputs(
   $copied = New-Object System.Collections.Generic.List[string]
   foreach ($relativePath in Get-LibrimeCacheRelativePaths) {
     $source = Join-Path $SourceWeaselRoot $relativePath
-    if (-not (Test-Path -LiteralPath $source)) {
-      continue
-    }
-
     $destination = Join-Path $DestinationWeaselRoot $relativePath
-    $destinationDir = Split-Path -Parent $destination
-    if (-not (Test-Path -LiteralPath $destinationDir)) {
-      New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
-    }
+    Copy-LibrimeCacheFile -SourcePath $source -DestinationPath $destination -RelativePath $relativePath -Copied $copied
+  }
 
-    Copy-Item -LiteralPath $source -Destination $destination -Force
-    $copied.Add($relativePath)
+  $openCcRuntimeRoot = Join-Path $SourceWeaselRoot 'librime\share\opencc'
+  if (Test-Path -LiteralPath $openCcRuntimeRoot -PathType Container) {
+    Get-ChildItem -LiteralPath $openCcRuntimeRoot -Recurse -File |
+      Sort-Object FullName |
+      ForEach-Object {
+        $openCcRelative = [System.IO.Path]::GetRelativePath($openCcRuntimeRoot, $_.FullName).Replace('/', '\')
+        $relativePath = Join-Path 'output\data\opencc' $openCcRelative
+        $destination = Join-Path $DestinationWeaselRoot $relativePath
+
+        Copy-LibrimeCacheFile -SourcePath $_.FullName -DestinationPath $destination -RelativePath $relativePath -Copied $copied
+      }
   }
 
   return [string[]]$copied
 }
 
-Export-ModuleMember -Function Get-LibrimeCacheRelativePaths,Copy-LibrimeCacheOutputs
+function Restore-LibrimeCacheOutputs(
+  [string]$SourceWeaselRoot,
+  [string]$DestinationWeaselRoot
+) {
+  if (-not (Test-Path -LiteralPath $SourceWeaselRoot)) {
+    throw "Source cache weasel root not found: $SourceWeaselRoot"
+  }
+
+  if (-not (Test-Path -LiteralPath $DestinationWeaselRoot)) {
+    New-Item -ItemType Directory -Path $DestinationWeaselRoot -Force | Out-Null
+  }
+
+  $restored = New-Object System.Collections.Generic.List[string]
+  Get-ChildItem -LiteralPath $SourceWeaselRoot -Recurse -File |
+    Sort-Object FullName |
+    ForEach-Object {
+      $relativePath = [System.IO.Path]::GetRelativePath($SourceWeaselRoot, $_.FullName).Replace('/', '\')
+      $destination = Join-Path $DestinationWeaselRoot $relativePath
+      Copy-LibrimeCacheFile -SourcePath $_.FullName -DestinationPath $destination -RelativePath $relativePath -Copied $restored
+    }
+
+  return [string[]]$restored
+}
+
+Export-ModuleMember -Function Get-LibrimeCacheRelativePaths,Copy-LibrimeCacheOutputs,Restore-LibrimeCacheOutputs

@@ -6,6 +6,7 @@ BeforeAll {
   $PackPath = Join-Path $PSScriptRoot '..\pack.ps1'
   $PrepareBoostPath = Join-Path $PSScriptRoot '..\scripts\prepare-boost.ps1'
   $SaveLibrimeCachePath = Join-Path $PSScriptRoot '..\scripts\save-librime-cache.ps1'
+  $RestoreLibrimeCachePath = Join-Path $PSScriptRoot '..\scripts\restore-librime-cache.ps1'
   $MergeReleaseAssetsPath = Join-Path $PSScriptRoot '..\scripts\merge-release-assets.ps1'
   $RestorePreviousReleaseAssetsPath = Join-Path $PSScriptRoot '..\scripts\restore-previous-release-assets.ps1'
   $WriteInstallerManifestPath = Join-Path $PSScriptRoot '..\scripts\write-installer-manifest.ps1'
@@ -216,28 +217,36 @@ Describe 'build workflow librime cache' {
     $content | Should -Match 'git clone --depth 1 -b master https://github\.com/rime/librime\.git librime'
     $content | Should -Match 'librime HEAD \(external fallback\)'
     $content | Should -Match 'sdk_version='
-    $content | Should -Match 'weasel/librime/bin/opencc_dict\.exe'
-    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v6'
+    $content | Should -Match 'librime-\$\{\{ runner\.os \}\}-weasel-\$\{\{ steps\.weasel-rev\.outputs\.sha \}\}-librime-\$\{\{ steps\.librime-rev\.outputs\.sha \}\}-librime-lua-\$\{\{ steps\.librime-lua-rev\.outputs\.lua_sha \}\}-lua-thirdparty-\$\{\{ steps\.librime-lua-rev\.outputs\.thirdparty_sha \}\}-msvc-\$\{\{ steps\.msvc\.outputs\.msvc_tools_version \}\}-sdk-\$\{\{ steps\.msvc\.outputs\.sdk_version \}\}-boost-static-v3-lua-v7'
     $content | Should -Not -Match '(?m)^\s+weasel/output/data/opencc\s*$'
   }
 
-  It 'caches simplified-to-traditional OpenCC configs needed by Moran simplified packages' {
+  It 'uses a staged librime cache restored by script instead of a hand-written OpenCC file list' {
     foreach ($path in @($WorkflowPath, $PackageRequestWorkflowPath)) {
       $content = Get-Content -LiteralPath $path -Raw
 
-      $content | Should -Match 'weasel/output/data/opencc/STCharacters\.ocd2'
-      $content | Should -Match 'weasel/output/data/opencc/STPhrases\.ocd2'
-      $content | Should -Match 'weasel/output/data/opencc/s2t\.json'
+      $content | Should -Match '(?m)^\s+path:\s*\.librime-cache\s*$'
+      $content | Should -Match '(?s)name:\s*Restore cached librime outputs\s+if:\s*steps\.librime-cache\.outputs\.cache-hit == ''true''\s+shell:\s*pwsh\s+run:\s*\./scripts/restore-librime-cache\.ps1'
+      $content | Should -Not -Match 'weasel/output/data/opencc/STCharacters\.ocd2'
+      $content | Should -Not -Match 'weasel/output/data/opencc/STPhrases\.ocd2'
+      $content | Should -Not -Match 'weasel/output/data/opencc/s2t\.json'
     }
   }
 
   It 'uses a dedicated script to sync only cacheable librime outputs' {
     Test-Path -LiteralPath $SaveLibrimeCachePath | Should -BeTrue
+    Test-Path -LiteralPath $RestoreLibrimeCachePath | Should -BeTrue
     $content = Get-Content -LiteralPath $SaveLibrimeCachePath -Raw
+    $restoreContent = Get-Content -LiteralPath $RestoreLibrimeCachePath -Raw
 
     $content | Should -Match 'Copy-LibrimeCacheOutputs'
     $content | Should -Match '\.pack-work\\weasel'
-    $content | Should -Match '\.\\weasel'
+    $content | Should -Match '\.librime-cache'
+    $content | Should -Match "\`$destination = Join-Path \`$cacheRoot 'weasel'"
+    $content | Should -Match 'Remove-Item'
+    $restoreContent | Should -Match 'Restore-LibrimeCacheOutputs'
+    $restoreContent | Should -Match '\.librime-cache\\weasel'
+    $restoreContent | Should -Match '\.\\weasel'
   }
 
   It 'validates cached or built rime.dll files when custom-data needs lua' {

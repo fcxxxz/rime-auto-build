@@ -8,6 +8,7 @@
 # 打包产物与中间物
 /.pack-work/
 /.pack-rime-cache/
+/.librime-cache/
 /output/
 weasel-*-installer.exe
 pack.log
